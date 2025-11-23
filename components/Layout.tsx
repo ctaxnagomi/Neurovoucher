@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { NeuroButton, NeuroCard } from './NeuroComponents';
-import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2, ClipboardList } from 'lucide-react';
+import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2, ClipboardList, Settings } from 'lucide-react';
 
 const SidebarItem = ({ to, icon: Icon, label }: { to: string; icon: any; label: string }) => (
   <NavLink to={to} className={({ isActive }) => `block mb-4 no-underline`}>
@@ -34,7 +34,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <SidebarItem to="/editor" icon={ImageIcon} label="Receipt Editor" />
           </nav>
 
-          <div className="mt-auto pt-4 border-t border-gray-300/20">
+          <div className="mt-auto pt-4 border-t border-gray-300/20 space-y-4">
+            <SidebarItem to="/settings" icon={Settings} label="Settings" />
             <div className="text-xs text-center text-gray-500">
                 v1.0.0 • Gemini 3.0 Inside
             </div>

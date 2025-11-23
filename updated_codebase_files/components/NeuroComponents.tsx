@@ -36,6 +36,20 @@ export const NeuroInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> =
   />
 );
 
+export const NeuroSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) => (
+  <div className="relative">
+    <select 
+      className={`${bgBase} ${textPrimary} w-full py-3 px-4 rounded-xl ${shadowInner} outline-none focus:ring-2 focus:ring-blue-400/30 transition-all appearance-none cursor-pointer ${props.className}`}
+      {...props}
+    >
+        {props.children}
+    </select>
+    <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+  </div>
+);
+
 export const NeuroTextarea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> = (props) => (
   <textarea 
     className={`${bgBase} ${textPrimary} w-full py-3 px-4 rounded-xl ${shadowInner} outline-none focus:ring-2 focus:ring-blue-400/30 transition-all placeholder-gray-400 ${props.className}`}

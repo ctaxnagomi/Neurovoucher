@@ -7,6 +7,7 @@ import { VoucherList } from './pages/VoucherList';
 import { ChatAssistant } from './pages/ChatAssistant';
 import { LiveAgent } from './pages/LiveAgent';
 import { ReceiptEditor } from './pages/ReceiptEditor';
+import { Settings } from './pages/Settings';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
           <Route path="/chat" element={<ChatAssistant />} />
           <Route path="/live" element={<LiveAgent />} />
           <Route path="/editor" element={<ReceiptEditor />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
