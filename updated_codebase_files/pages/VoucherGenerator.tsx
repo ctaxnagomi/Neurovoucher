@@ -77,7 +77,7 @@ export const VoucherGenerator: React.FC = () => {
                 "Meals & Entertainment", 
                 "Utilities", 
                 "Professional Services", 
-                "Medical",
+                "Medical", 
                 "Maintenance & Repairs",
                 "Training & Development"
             ];
@@ -279,41 +279,41 @@ export const VoucherGenerator: React.FC = () => {
     // Use existing auto-filled fields to preserve previous fills if merging
     const newAutoFilled = new Set<string>(autoFilledFields);
 
+    const isEmpty = (val: string) => !val || val.trim() === '';
+
+    const applyIfEmpty = (currentValue: string, newValue: any, fieldKey: string, setter: (val: any) => void) => {
+        if (newValue && isEmpty(currentValue)) {
+            setter(newValue);
+            newAutoFilled.add(fieldKey);
+        }
+    };
+
     // Pre-fill Payee
-    if (extractedData.payeeName) {
-        setPayee(extractedData.payeeName);
-        newAutoFilled.add('payee');
-    }
-    if (extractedData.payeeId) {
-        setPayeeIc(extractedData.payeeId);
-        newAutoFilled.add('payeeIc');
-    }
+    applyIfEmpty(payee, extractedData.payeeName, 'payee', setPayee);
+    applyIfEmpty(payeeIc, extractedData.payeeId, 'payeeIc', setPayeeIc);
     
     // Apply Date to both Voucher Date and Original Expense Date
     if (extractedData.date) {
-        setVoucherDate(extractedData.date);
-        newAutoFilled.add('voucherDate');
+        if (isEmpty(voucherDate)) {
+            setVoucherDate(extractedData.date);
+            newAutoFilled.add('voucherDate');
+        }
         
-        setOriginalDate(extractedData.date); 
-        newAutoFilled.add('originalDate');
+        if (isEmpty(originalDate)) {
+            setOriginalDate(extractedData.date); 
+            newAutoFilled.add('originalDate');
+        }
     }
     
     // Pre-fill Company (if 'Bill To' detected)
-    if (extractedData.companyName) {
-        setCompanyName(extractedData.companyName);
-        newAutoFilled.add('companyName');
-    }
-    if (extractedData.companyRegNo) {
-        setCompanyRegNo(extractedData.companyRegNo);
-        newAutoFilled.add('companyRegNo');
-    }
-    if (extractedData.companyAddress) {
-        setCompanyAddress(extractedData.companyAddress);
-        newAutoFilled.add('companyAddress');
-    }
+    applyIfEmpty(companyName, extractedData.companyName, 'companyName', setCompanyName);
+    applyIfEmpty(companyRegNo, extractedData.companyRegNo, 'companyRegNo', setCompanyRegNo);
+    applyIfEmpty(companyAddress, extractedData.companyAddress, 'companyAddress', setCompanyAddress);
 
-    // Overwrite total amount and items to match receipt
-    if (extractedData.totalAmount) {
+    // Overwrite total amount and items to match receipt only if items list is effectively empty
+    const isItemsEmpty = items.length === 0 || (items.length === 1 && isEmpty(items[0].description) && Number(items[0].amount) === 0);
+
+    if (extractedData.totalAmount && isItemsEmpty) {
         const newItemId = Date.now().toString();
         setItems([{
             id: newItemId,
@@ -431,7 +431,7 @@ export const VoucherGenerator: React.FC = () => {
         </div>
         <div className="flex flex-wrap gap-3 items-center">
             {/* Language Selector for OCR */}
-            <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-xl border border-white/60">
+            <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-xl border border-white/60" title="Select Receipt Language">
                 <Languages size={16} className="text-gray-400" />
                 <NeuroSelect 
                     value={ocrLanguage} 
@@ -853,7 +853,7 @@ export const VoucherGenerator: React.FC = () => {
                             </div>
                         )}
                     </div>
-                    <p className="text-xs text-center text-gray-400">Applying this will overwrite your current form fields.</p>
+                    <p className="text-xs text-center text-gray-400">OCR data will only fill empty fields. Your existing entries are safe.</p>
                 </div>
                 
                 <div className="flex gap-4 justify-end">
