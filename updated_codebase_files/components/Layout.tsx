@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { NeuroButton, NeuroCard } from './NeuroComponents';
-import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2 } from 'lucide-react';
+import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2, ClipboardList } from 'lucide-react';
 
 const SidebarItem = ({ to, icon: Icon, label }: { to: string; icon: any; label: string }) => (
   <NavLink to={to} className={({ isActive }) => `block mb-4 no-underline`}>
@@ -28,6 +28,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <nav className="flex-1">
             <SidebarItem to="/" icon={BarChart2} label="Dashboard" />
             <SidebarItem to="/voucher" icon={FileText} label="Generator" />
+            <SidebarItem to="/vouchers" icon={ClipboardList} label="History" />
             <SidebarItem to="/chat" icon={MessageSquare} label="AI Advisor" />
             <SidebarItem to="/live" icon={Mic} label="Live Agent" />
             <SidebarItem to="/editor" icon={ImageIcon} label="Receipt Editor" />
