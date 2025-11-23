@@ -27,3 +27,11 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
 }
+
+export const SUPPORTED_LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'ms', label: 'Malay (Bahasa Melayu)' },
+  { code: 'id', label: 'Indonesia (Bahasa Indonesia)' },
+  { code: 'fil', label: 'Philippines (Tagalog)' },
+  { code: 'zh', label: 'Chinese (中文)' },
+];

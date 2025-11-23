@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Archive } from 'lucide-react';
-import { VoucherItem } from '../types';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages } from 'lucide-react';
+import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 
 const AutoFilledIndicator = () => (
@@ -51,6 +51,7 @@ export const VoucherGenerator: React.FC = () => {
   const [showOCRConfirm, setShowOCRConfirm] = useState(false);
   const [extractedData, setExtractedData] = useState<any>(null);
   const [showOCRHelp, setShowOCRHelp] = useState(false);
+  const [ocrLanguage, setOcrLanguage] = useState('en');
   
   // Auto-filled field tracking
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
@@ -236,7 +237,8 @@ export const VoucherGenerator: React.FC = () => {
     reader.onloadend = async () => {
         try {
             const base64String = (reader.result as string).split(',')[1];
-            const data = await extractReceiptData(base64String);
+            // Pass the selected language code for context
+            const data = await extractReceiptData(base64String, ocrLanguage);
             
             if (!data || Object.keys(data).length === 0) {
                 alert('Could not extract data from the receipt image. Please try a clearer photo.');
@@ -277,48 +279,41 @@ export const VoucherGenerator: React.FC = () => {
     // Use existing auto-filled fields to preserve previous fills if merging
     const newAutoFilled = new Set<string>(autoFilledFields);
 
-    const isEmpty = (val: string) => !val || val.trim() === '';
-
     // Pre-fill Payee
-    if (extractedData.payeeName && isEmpty(payee)) {
+    if (extractedData.payeeName) {
         setPayee(extractedData.payeeName);
         newAutoFilled.add('payee');
     }
-    if (extractedData.payeeId && isEmpty(payeeIc)) {
+    if (extractedData.payeeId) {
         setPayeeIc(extractedData.payeeId);
         newAutoFilled.add('payeeIc');
     }
     
     // Apply Date to both Voucher Date and Original Expense Date
     if (extractedData.date) {
-        if (isEmpty(voucherDate)) {
-            setVoucherDate(extractedData.date);
-            newAutoFilled.add('voucherDate');
-        }
-        if (isEmpty(originalDate)) {
-            setOriginalDate(extractedData.date); 
-            newAutoFilled.add('originalDate');
-        }
+        setVoucherDate(extractedData.date);
+        newAutoFilled.add('voucherDate');
+        
+        setOriginalDate(extractedData.date); 
+        newAutoFilled.add('originalDate');
     }
     
     // Pre-fill Company (if 'Bill To' detected)
-    if (extractedData.companyName && isEmpty(companyName)) {
+    if (extractedData.companyName) {
         setCompanyName(extractedData.companyName);
         newAutoFilled.add('companyName');
     }
-    if (extractedData.companyRegNo && isEmpty(companyRegNo)) {
+    if (extractedData.companyRegNo) {
         setCompanyRegNo(extractedData.companyRegNo);
         newAutoFilled.add('companyRegNo');
     }
-    if (extractedData.companyAddress && isEmpty(companyAddress)) {
+    if (extractedData.companyAddress) {
         setCompanyAddress(extractedData.companyAddress);
         newAutoFilled.add('companyAddress');
     }
 
-    // Only apply total amount if items list is effectively empty
-    const isItemsEmpty = items.length === 0 || (items.length === 1 && !items[0].description && !items[0].amount);
-
-    if (extractedData.totalAmount && isItemsEmpty) {
+    // Overwrite total amount and items to match receipt
+    if (extractedData.totalAmount) {
         const newItemId = Date.now().toString();
         setItems([{
             id: newItemId,
@@ -434,7 +429,21 @@ export const VoucherGenerator: React.FC = () => {
             <h2 className="text-2xl font-bold text-gray-700">New Cash Voucher</h2>
             <p className="text-sm text-gray-500">Generate a new payment voucher with AI assistance</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3 items-center">
+            {/* Language Selector for OCR */}
+            <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-xl border border-white/60">
+                <Languages size={16} className="text-gray-400" />
+                <NeuroSelect 
+                    value={ocrLanguage} 
+                    onChange={(e) => setOcrLanguage(e.target.value)}
+                    className="!py-1 !px-2 !text-xs !bg-transparent !shadow-none !border-none focus:!ring-0 w-24 md:w-32"
+                >
+                    {SUPPORTED_LANGUAGES.map(lang => (
+                        <option key={lang.code} value={lang.code}>{lang.label}</option>
+                    ))}
+                </NeuroSelect>
+            </div>
+
             <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -823,20 +832,26 @@ export const VoucherGenerator: React.FC = () => {
                             <span className="text-gray-500">Total Amount</span> 
                             <span className="font-bold text-purple-600">{extractedData.totalAmount ? `RM ${extractedData.totalAmount.toFixed(2)}` : "Not Found"}</span>
                         </div>
-                         {(extractedData.companyName || extractedData.companyRegNo || extractedData.companyAddress) && (
-                             <div className="flex flex-col border-b border-gray-300/50 pb-2">
+                        
+                        {/* Company Details */}
+                        {(extractedData.companyName || extractedData.companyRegNo) && (
+                            <div className="flex flex-col border-b border-gray-300/50 pb-2">
                                 <div className="flex justify-between">
                                     <span className="text-gray-500">Bill To</span> 
-                                    <span className="font-semibold text-gray-700 text-right truncate max-w-[150px]">{extractedData.companyName || '-'}</span>
+                                    <span className="font-semibold text-gray-700 text-right truncate max-w-[200px]">{extractedData.companyName || '-'}</span>
                                 </div>
                                 {extractedData.companyRegNo && (
                                     <span className="text-xs text-gray-400 text-right mt-1 block">Reg: {extractedData.companyRegNo}</span>
                                 )}
-                                {extractedData.companyAddress && (
-                                    <span className="text-[10px] text-gray-400 text-right mt-1 block leading-tight truncate max-w-[200px] ml-auto">{extractedData.companyAddress}</span>
-                                )}
                             </div>
-                         )}
+                        )}
+                        
+                        {extractedData.companyAddress && (
+                            <div className="flex flex-col border-b border-gray-300/50 pb-2">
+                                <span className="text-gray-500 mb-1">Company Address</span> 
+                                <span className="text-xs text-gray-600 text-right leading-relaxed bg-white/50 p-2 rounded-lg border border-gray-200/50">{extractedData.companyAddress}</span>
+                            </div>
+                        )}
                     </div>
                     <p className="text-xs text-center text-gray-400">Applying this will overwrite your current form fields.</p>
                 </div>
