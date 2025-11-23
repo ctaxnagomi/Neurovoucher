@@ -6,7 +6,6 @@ import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, Aler
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 import { jsPDF } from "jspdf";
-import { numberToWords } from "../lib/utils/number-to-words"; // Assume exists or we implement simple logic below
 
 // Simple Number to Words fallback if lib missing (Mock implementation for this context)
 const toWords = (amount: number) => {
@@ -96,6 +95,7 @@ export const VoucherGenerator: React.FC = () => {
   const dictationCleanupRef = useRef<() => void>(() => {});
 
   const fileInputRef = useRef<HTMLInputElement>(null); // For Receipt OCR
+  const companyDocInputRef = useRef<HTMLInputElement>(null); // For Company Doc OCR
   const logoInputRef = useRef<HTMLInputElement>(null); // For Company Logo
 
   const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
@@ -255,7 +255,8 @@ export const VoucherGenerator: React.FC = () => {
     }
   };
 
-  const handleReceiptScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Generic handler for scanning receipts or company docs
+  const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -268,25 +269,26 @@ export const VoucherGenerator: React.FC = () => {
             const data = await extractReceiptData(base64String, ocrLanguage);
             
             if (!data || Object.keys(data).length === 0) {
-                alert('Could not extract data from the receipt image. Please try a clearer photo.');
+                alert('Could not extract data from the image. Please try a clearer photo.');
                 setScanning(false);
                 return;
             }
 
-            // Store extracted data for confirmation instead of applying immediately
+            // Store extracted data for confirmation
             setExtractedData(data);
             setShowOCRConfirm(true);
             
         } catch (error) {
             console.error(error);
-            alert('Error processing receipt.');
+            alert('Error processing image.');
         } finally {
             setScanning(false);
         }
     };
     reader.readAsDataURL(file);
-    // Reset input
+    // Reset inputs
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (companyDocInputRef.current) companyDocInputRef.current.value = '';
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -347,7 +349,7 @@ export const VoucherGenerator: React.FC = () => {
         }
     }
     
-    // Pre-fill Company (if 'Bill To' detected)
+    // Pre-fill Company (if 'Bill To' detected or specific company doc scanned)
     applyIfEmpty(companyName, extractedData.companyName, 'companyName', setCompanyName, PLACEHOLDERS.companyName);
     applyIfEmpty(companyRegNo, extractedData.companyRegNo, 'companyRegNo', setCompanyRegNo, PLACEHOLDERS.companyRegNo);
     applyIfEmpty(companyAddress, extractedData.companyAddress, 'companyAddress', setCompanyAddress, PLACEHOLDERS.companyAddress);
@@ -686,7 +688,7 @@ export const VoucherGenerator: React.FC = () => {
                     ref={fileInputRef} 
                     className="hidden" 
                     accept="image/png, image/jpeg, image/webp" 
-                    onChange={handleReceiptScan} 
+                    onChange={handleScan} 
                 />
                 <NeuroButton onClick={() => fileInputRef.current?.click()} disabled={scanning} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[140px]">
                     <Upload size={16} className={scanning ? "animate-bounce text-blue-500" : "text-purple-600"} />
@@ -704,7 +706,27 @@ export const VoucherGenerator: React.FC = () => {
         
         {/* Section 1: Company Information (Letterhead) */}
         <div className="xl:col-span-4 h-full">
-            <NeuroCard title="Company Information (Letterhead)" className="h-full">
+            <NeuroCard className="h-full">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">Company Information (Letterhead)</h3>
+                    <button 
+                        onClick={() => companyDocInputRef.current?.click()}
+                        className="text-xs flex items-center gap-2 text-blue-500 hover:text-blue-700 transition-colors bg-blue-50 px-2 py-1 rounded-md"
+                        title="Upload business card or letterhead to auto-fill"
+                        disabled={scanning}
+                    >
+                        {scanning ? <Sparkles size={14} className="animate-spin" /> : <ScanLine size={14} />}
+                        Auto-fill
+                    </button>
+                    <input 
+                        type="file" 
+                        ref={companyDocInputRef}
+                        onChange={handleScan}
+                        className="hidden"
+                        accept="image/png, image/jpeg, image/webp"
+                    />
+                </div>
+
                 <div className="space-y-4">
                     {/* Logo Section */}
                     <div className="flex flex-col items-center justify-center mb-6">
