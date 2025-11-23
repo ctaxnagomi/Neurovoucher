@@ -1,5 +1,5 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
-import { GeminiModel } from "../types";
+import { GeminiModel, SUPPORTED_LANGUAGES } from "../types";
 import { b64ToUint8Array, decodeAudioData } from "./audioUtils";
 
 // Helper to get key from storage or env
@@ -142,6 +142,10 @@ export const extractReceiptData = async (base64Image: string, language: string =
     companyAddress?: string;
 } | null> => {
   const client = getClient();
+  
+  // Resolve language code to label for better prompting
+  const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === language)?.label || language;
+
   try {
     const response = await client.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -153,7 +157,7 @@ export const extractReceiptData = async (base64Image: string, language: string =
               mimeType: 'image/jpeg'
             }
           },
-          { text: `Analyze this receipt image which is likely in ${language} language. Extract the following details into a structured JSON format.
+          { text: `Analyze this receipt image which is likely in ${langLabel}. Extract the following details into a structured JSON format.
 
             1. **Payee Name**: The merchant or shop name. Look at the top header or logo.
             2. **Payee ID**: Business registration number (e.g., SSM, ROC, ROB, GST ID, TIN).
