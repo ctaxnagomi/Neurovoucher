@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info } from 'lucide-react';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Archive } from 'lucide-react';
 import { VoucherItem } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 
@@ -26,6 +26,7 @@ export const VoucherGenerator: React.FC = () => {
   const [companyName, setCompanyName] = useState('');
   const [companyRegNo, setCompanyRegNo] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
 
   // Authorization Details
   const [preparedBy, setPreparedBy] = useState('');
@@ -106,6 +107,9 @@ export const VoucherGenerator: React.FC = () => {
         setAutoFilledFields(next);
     }
   };
+
+  const getAutoFillClass = (field: string) => 
+    autoFilledFields.has(field) ? "ring-2 ring-purple-400/40 bg-purple-50/10 transition-all duration-500" : "";
 
   const addItem = () => {
     setItems([...items, { id: Date.now().toString(), description: '', amount: 0 }]);
@@ -256,6 +260,17 @@ export const VoucherGenerator: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setCompanyLogo(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
   const applyOCRData = () => {
     if (!extractedData) return;
 
@@ -348,7 +363,7 @@ export const VoucherGenerator: React.FC = () => {
     setShowConfirmDialog(true);
   };
 
-  const executeSaveVoucher = async () => {
+  const executeSaveVoucher = async (status: 'DRAFT' | 'COMPLETED' = 'COMPLETED') => {
     setShowConfirmDialog(false);
     setSaving(true);
 
@@ -358,7 +373,8 @@ export const VoucherGenerator: React.FC = () => {
         company: {
             name: companyName,
             registration_no: companyRegNo,
-            address: companyAddress
+            address: companyAddress,
+            logo: companyLogo
         },
         payee: {
             name: payee,
@@ -380,7 +396,8 @@ export const VoucherGenerator: React.FC = () => {
             reason: lostReason,
             evidence_type: evidenceType,
             evidence_ref: evidenceRef
-        }
+        },
+        status: status
     };
 
     try {
@@ -393,13 +410,13 @@ export const VoucherGenerator: React.FC = () => {
         });
 
         if (response.ok) {
-            alert("Voucher saved successfully!");
+            alert(`Voucher ${status.toLowerCase()} saved successfully!`);
             // Optional: Redirect or clear form
         } else {
             console.warn("Backend API not reachable. Mocking success.");
             // Slight delay to simulate network
             await new Promise(resolve => setTimeout(resolve, 1000));
-            alert(`Voucher saved (Simulation). Data logged to console.`);
+            alert(`Voucher saved as ${status}. Data logged to console.`);
             console.log("Submitted Payload:", payload);
         }
     } catch (error) {
@@ -441,6 +458,32 @@ export const VoucherGenerator: React.FC = () => {
         <div className="xl:col-span-1 h-full">
             <NeuroCard title="Company Information" className="h-full">
                 <div className="space-y-4">
+                    {/* Logo Section */}
+                    <div className="flex flex-col items-center justify-center mb-6">
+                         <div className="relative w-24 h-24 group cursor-pointer">
+                            <div className={`w-full h-full rounded-2xl overflow-hidden flex items-center justify-center border-2 border-dashed border-gray-300 bg-gray-50/50 transition-all ${companyLogo ? 'border-purple-200' : 'hover:border-purple-300'}`}>
+                                {companyLogo ? (
+                                    <img src={companyLogo} alt="Company Logo" className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="text-center text-gray-400 p-2">
+                                        <ImageIcon size={24} className="mx-auto mb-1 opacity-50" />
+                                        <span className="text-[10px] uppercase font-bold tracking-wider">Logo</span>
+                                    </div>
+                                )}
+                            </div>
+                            {/* Hover Overlay */}
+                            <div className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-xs backdrop-blur-[1px]">
+                                 <span className="text-xs font-medium">Change</span>
+                            </div>
+                            <input 
+                                type="file" 
+                                accept="image/*"
+                                onChange={handleLogoUpload}
+                                className="absolute inset-0 opacity-0 cursor-pointer"
+                            />
+                         </div>
+                    </div>
+
                     <div className="relative">
                         <label className="block text-sm text-gray-500 mb-2 flex items-center gap-2">
                             <Building2 size={14} /> Company Name
@@ -450,6 +493,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={companyName} 
                                 onChange={(e) => { setCompanyName(e.target.value); handleFieldChange('companyName'); }}
                                 placeholder="e.g., My Tech Sdn Bhd" 
+                                className={getAutoFillClass('companyName')}
                             />
                             {autoFilledFields.has('companyName') && <AutoFilledIndicator />}
                         </div>
@@ -461,6 +505,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={companyRegNo} 
                                 onChange={(e) => { setCompanyRegNo(e.target.value); handleFieldChange('companyRegNo'); }}
                                 placeholder="e.g., 202301000XXX" 
+                                className={getAutoFillClass('companyRegNo')}
                             />
                             {autoFilledFields.has('companyRegNo') && <AutoFilledIndicator />}
                         </div>
@@ -473,6 +518,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={companyAddress} 
                                 onChange={(e) => { setCompanyAddress(e.target.value); handleFieldChange('companyAddress'); }}
                                 placeholder="Full business address..." 
+                                className={getAutoFillClass('companyAddress')}
                             />
                             {autoFilledFields.has('companyAddress') && <div className="absolute right-3 top-3"><Sparkles size={16} className="text-purple-500 animate-pulse opacity-70" /></div>}
                         </div>
@@ -505,7 +551,7 @@ export const VoucherGenerator: React.FC = () => {
                                 type="date" 
                                 value={voucherDate} 
                                 onChange={(e) => { setVoucherDate(e.target.value); handleFieldChange('voucherDate'); }}
-                                className="pl-10"
+                                className={`pl-10 ${getAutoFillClass('voucherDate')}`}
                             />
                             <Calendar size={18} className="absolute left-3 top-3.5 text-gray-400" />
                             {autoFilledFields.has('voucherDate') && <AutoFilledIndicator />}
@@ -536,6 +582,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={payee} 
                                 onChange={(e) => { setPayee(e.target.value); handleFieldChange('payee'); }}
                                 placeholder="e.g., Ali Bin Abu" 
+                                className={getAutoFillClass('payee')}
                             />
                             {autoFilledFields.has('payee') && <AutoFilledIndicator />}
                         </div>
@@ -549,6 +596,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={payeeIc}
                                 onChange={(e) => { setPayeeIc(e.target.value); handleFieldChange('payeeIc'); }}
                                 placeholder="e.g., 880101-14-XXXX" 
+                                className={getAutoFillClass('payeeIc')}
                             />
                             {autoFilledFields.has('payeeIc') && <AutoFilledIndicator />}
                         </div>
@@ -626,7 +674,7 @@ export const VoucherGenerator: React.FC = () => {
                                     placeholder="0.00" 
                                     value={item.amount}
                                     onChange={(e) => updateItem(item.id, 'amount', e.target.value)}
-                                    className="text-right"
+                                    className={`text-right ${getAutoFillClass(`item-${item.id}-amount`)}`}
                                 />
                                 {autoFilledFields.has(`item-${item.id}-amount`) && (
                                     <div className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -664,15 +712,35 @@ export const VoucherGenerator: React.FC = () => {
                     <NeuroBadge color="text-blue-600 bg-blue-100/50 px-4 py-1">Draft</NeuroBadge>
                 </div>
                 
-                <div className="pt-6 border-t border-gray-200/50">
+                <div className="pt-6 border-t border-gray-200/50 space-y-4">
                     <NeuroButton 
-                        onClick={handleSaveClick} 
-                        disabled={saving} 
-                        className="w-full text-blue-600 font-bold text-lg py-4 flex items-center justify-center gap-2"
+                        onClick={handleAISummary} 
+                        disabled={loadingAI} 
+                        className="w-full text-purple-600 text-sm py-3 flex items-center justify-center gap-2"
                     >
-                        {saving ? <Sparkles size={20} className="animate-spin" /> : <Save size={20} />}
-                        {saving ? 'Saving...' : 'Save Voucher'}
+                        <Sparkles size={16} className={loadingAI ? "animate-spin" : ""} />
+                        {loadingAI ? 'Generating...' : 'AI Check Description'}
                     </NeuroButton>
+
+                    <div className="flex gap-3">
+                        <NeuroButton 
+                            onClick={() => executeSaveVoucher('DRAFT')} 
+                            disabled={saving} 
+                            className="flex-1 text-gray-600 font-bold text-sm py-3 flex items-center justify-center gap-2"
+                        >
+                            <FileText size={18} />
+                            Draft
+                        </NeuroButton>
+
+                        <NeuroButton 
+                            onClick={handleSaveClick} 
+                            disabled={saving} 
+                            className="flex-1 text-blue-600 font-bold text-sm py-3 flex items-center justify-center gap-2"
+                        >
+                            {saving ? <Sparkles size={18} className="animate-spin" /> : <Save size={18} />}
+                            {saving ? '...' : 'Save'}
+                        </NeuroButton>
+                    </div>
                 </div>
             </NeuroCard>
         </div>
@@ -684,7 +752,12 @@ export const VoucherGenerator: React.FC = () => {
                <div>
                     <label className="block text-sm text-gray-500 mb-2">Original Expense Date</label>
                     <div className="relative">
-                        <NeuroInput type="date" value={originalDate} onChange={(e) => { setOriginalDate(e.target.value); handleFieldChange('originalDate'); }} />
+                        <NeuroInput 
+                            type="date" 
+                            value={originalDate} 
+                            onChange={(e) => { setOriginalDate(e.target.value); handleFieldChange('originalDate'); }} 
+                            className={getAutoFillClass('originalDate')}
+                        />
                         {autoFilledFields.has('originalDate') && <AutoFilledIndicator />}
                     </div>
                </div>
@@ -750,10 +823,18 @@ export const VoucherGenerator: React.FC = () => {
                             <span className="text-gray-500">Total Amount</span> 
                             <span className="font-bold text-purple-600">{extractedData.totalAmount ? `RM ${extractedData.totalAmount.toFixed(2)}` : "Not Found"}</span>
                         </div>
-                         {extractedData.companyName && (
-                             <div className="flex justify-between border-b border-gray-300/50 pb-2">
-                                <span className="text-gray-500">Bill To</span> 
-                                <span className="font-semibold text-gray-700 text-right truncate max-w-[150px]">{extractedData.companyName}</span>
+                         {(extractedData.companyName || extractedData.companyRegNo || extractedData.companyAddress) && (
+                             <div className="flex flex-col border-b border-gray-300/50 pb-2">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Bill To</span> 
+                                    <span className="font-semibold text-gray-700 text-right truncate max-w-[150px]">{extractedData.companyName || '-'}</span>
+                                </div>
+                                {extractedData.companyRegNo && (
+                                    <span className="text-xs text-gray-400 text-right mt-1 block">Reg: {extractedData.companyRegNo}</span>
+                                )}
+                                {extractedData.companyAddress && (
+                                    <span className="text-[10px] text-gray-400 text-right mt-1 block leading-tight truncate max-w-[200px] ml-auto">{extractedData.companyAddress}</span>
+                                )}
                             </div>
                          )}
                     </div>
@@ -845,7 +926,7 @@ export const VoucherGenerator: React.FC = () => {
                 
                 <div className="flex gap-4 justify-end">
                     <NeuroButton onClick={() => setShowConfirmDialog(false)} className="text-sm px-6">Cancel</NeuroButton>
-                    <NeuroButton onClick={executeSaveVoucher} className="text-sm text-blue-600 font-bold px-6">Confirm Save</NeuroButton>
+                    <NeuroButton onClick={() => executeSaveVoucher('COMPLETED')} className="text-sm text-blue-600 font-bold px-6">Confirm Save</NeuroButton>
                 </div>
             </NeuroCard>
         </div>

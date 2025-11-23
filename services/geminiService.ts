@@ -2,17 +2,42 @@ import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { GeminiModel } from "../types";
 import { b64ToUint8Array, decodeAudioData } from "./audioUtils";
 
-const apiKey = process.env.API_KEY || ''; 
-// NOTE: In a real app, never hardcode, always use process.env.API_KEY
+// Helper to get key from storage or env
+export const getApiKey = () => {
+  return localStorage.getItem('GEMINI_API_KEY') || process.env.API_KEY || '';
+};
+
+export const setStoredApiKey = (key: string) => {
+  localStorage.setItem('GEMINI_API_KEY', key);
+  // Reset client so it re-initializes with new key next time
+  aiClient = null;
+};
 
 let aiClient: GoogleGenAI | null = null;
 
 const getClient = () => {
-  if (!aiClient) {
-    if (!apiKey) console.error("API_KEY is missing");
-    aiClient = new GoogleGenAI({ apiKey });
+  const key = getApiKey();
+  if (!aiClient || aiClient.apiKey !== key) {
+    if (!key) console.warn("API_KEY is missing. Please configure it in Settings.");
+    aiClient = new GoogleGenAI({ apiKey: key });
   }
   return aiClient;
+};
+
+// --- Connection Validation ---
+export const validateConnection = async (): Promise<boolean> => {
+    try {
+        const client = getClient();
+        // Lightweight call to test auth
+        await client.models.countTokens({
+            model: 'gemini-2.5-flash',
+            contents: 'test',
+        });
+        return true;
+    } catch (error) {
+        console.error("Connection Validation Failed:", error);
+        return false;
+    }
 };
 
 // --- Fast AI (Flash Lite) ---
