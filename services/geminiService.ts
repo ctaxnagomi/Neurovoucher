@@ -140,6 +140,9 @@ export const extractReceiptData = async (base64Image: string, language: string =
     companyName?: string;
     companyRegNo?: string;
     companyAddress?: string;
+    companyTel?: string;
+    companyEmail?: string;
+    companyFax?: string;
 } | null> => {
   const client = getClient();
   
@@ -162,12 +165,13 @@ export const extractReceiptData = async (base64Image: string, language: string =
             1. **Payee Name**: The merchant or shop name. Look at the top header or logo.
             2. **Payee ID**: Business registration number (e.g., SSM, ROC, ROB, GST ID, TIN).
             3. **Date**: The transaction date. Standardize to YYYY-MM-DD. Handle local date formats.
-            4. **Total Amount**: The final total paid (numeric). Ignore currency prefixes like 'RM', 'MYR', 'Rp', '₱', '¥'. Use the 'Grand Total' or 'Net Total'.
+            4. **Total Amount**: The final total paid (numeric). Ignore currency prefixes.
             5. **Company Name**: The 'Bill To' customer name (common in tax invoices).
             6. **Company Registration No**: The 'Bill To' registration number.
-            7. **Company Address**: The full address of the 'Bill To' company, including street, city, state, and postal code. Join multiple lines into a single string.
+            7. **Company Address**: The full address of the 'Bill To' company.
+            8. **Company Contact**: Extract Phone (Tel), Email, and Fax if available in the header or footer.
 
-            If a field is ambiguous or missing, exclude it or return null. Focus on high precision for Payee Name, Date, and Total Amount.` 
+            If a field is ambiguous or missing, exclude it or return null.` 
           }
         ]
       },
@@ -182,7 +186,10 @@ export const extractReceiptData = async (base64Image: string, language: string =
                 totalAmount: { type: Type.NUMBER, description: "Total amount paid (numeric)" },
                 companyName: { type: Type.STRING, description: "Bill-to company name" },
                 companyRegNo: { type: Type.STRING, description: "Bill-to company registration no" },
-                companyAddress: { type: Type.STRING, description: "Bill-to company address" }
+                companyAddress: { type: Type.STRING, description: "Bill-to company address" },
+                companyTel: { type: Type.STRING, description: "Company Telephone Number" },
+                companyEmail: { type: Type.STRING, description: "Company Email Address" },
+                companyFax: { type: Type.STRING, description: "Company Fax Number" }
             },
             required: ["payeeName", "totalAmount"]
         }

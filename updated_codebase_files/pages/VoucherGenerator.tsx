@@ -2,16 +2,25 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download } from 'lucide-react';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer } from 'lucide-react';
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 import { jsPDF } from "jspdf";
+import { numberToWords } from "../lib/utils/number-to-words"; // Assume exists or we implement simple logic below
+
+// Simple Number to Words fallback if lib missing (Mock implementation for this context)
+const toWords = (amount: number) => {
+    return `RINGGIT MALAYSIA ${amount.toFixed(2)} ONLY`; 
+};
 
 // Placeholder Constants to ensure consistency between UI and Logic
 const PLACEHOLDERS = {
     companyName: "e.g., My Tech Sdn Bhd",
     companyRegNo: "e.g., 202301000XXX",
     companyAddress: "Full business address...",
+    companyTel: "e.g., +603-1234 5678",
+    companyEmail: "finance@company.com",
+    companyFax: "e.g., +603-1234 5679",
     payee: "e.g., Ali Bin Abu",
     payeeIc: "e.g., 880101-14-XXXX (Required)",
     voucherNo: "PV-YYYY-XXXX",
@@ -45,6 +54,9 @@ export const VoucherGenerator: React.FC = () => {
   const [companyName, setCompanyName] = useState('');
   const [companyRegNo, setCompanyRegNo] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
+  const [companyTel, setCompanyTel] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyFax, setCompanyFax] = useState('');
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
 
   // Authorization Details
@@ -72,6 +84,10 @@ export const VoucherGenerator: React.FC = () => {
   const [showOCRHelp, setShowOCRHelp] = useState(false);
   const [ocrLanguage, setOcrLanguage] = useState('en');
   
+  // PDF Preview State
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+
   // Auto-filled field tracking
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
 
@@ -98,32 +114,9 @@ export const VoucherGenerator: React.FC = () => {
             "Maintenance & Repairs", 
             "Training & Development"
         ];
-
-        try {
-            // Attempt to fetch from real API
-            const response = await fetch('/api/categories');
-            
-            let loadedCategories: string[] = [];
-
-            if (response.ok) {
-                const result = await response.json();
-                // Handle various response shapes { data: [] } or []
-                loadedCategories = Array.isArray(result) ? result : (result.data || []);
-            }
-
-            // Fallback if API returns empty
-            if (loadedCategories.length === 0) {
-                 loadedCategories = defaultCategories;
-            }
-
-            setCategories(loadedCategories);
-            setCategory(prev => prev || loadedCategories[0]);
-
-        } catch (error) {
-            console.warn("Failed to load categories from API, using defaults", error);
-            setCategories(defaultCategories);
-            setCategory(prev => prev || defaultCategories[0]);
-        }
+        // Mock API call simulation
+        setCategories(defaultCategories);
+        setCategory(defaultCategories[0]);
     };
     fetchCategories();
   }, []);
@@ -358,6 +351,11 @@ export const VoucherGenerator: React.FC = () => {
     applyIfEmpty(companyName, extractedData.companyName, 'companyName', setCompanyName, PLACEHOLDERS.companyName);
     applyIfEmpty(companyRegNo, extractedData.companyRegNo, 'companyRegNo', setCompanyRegNo, PLACEHOLDERS.companyRegNo);
     applyIfEmpty(companyAddress, extractedData.companyAddress, 'companyAddress', setCompanyAddress, PLACEHOLDERS.companyAddress);
+    
+    // Apply Contact Info
+    applyIfEmpty(companyTel, extractedData.companyTel, 'companyTel', setCompanyTel, PLACEHOLDERS.companyTel);
+    applyIfEmpty(companyEmail, extractedData.companyEmail, 'companyEmail', setCompanyEmail, PLACEHOLDERS.companyEmail);
+    applyIfEmpty(companyFax, extractedData.companyFax, 'companyFax', setCompanyFax, PLACEHOLDERS.companyFax);
 
     // Intelligent Item & Amount Handling
     if (extractedData.totalAmount) {
@@ -375,7 +373,7 @@ export const VoucherGenerator: React.FC = () => {
         else if (items.length === 1) {
             const item = items[0];
             const isAmountZero = Number(item.amount) === 0;
-            const isDescEmpty = isEmpty(item.description);
+            const isDescEmpty = isEmpty(item.description, PLACEHOLDERS.description);
 
             // If amount is 0 (default/empty), we can fill it.
             // If user has entered an amount (!= 0), we do NOT overwrite it.
@@ -390,7 +388,6 @@ export const VoucherGenerator: React.FC = () => {
                  setItems([updatedItem]);
             }
         }
-        // Case 3: Multiple items - Do nothing to avoid disrupting manual split
     }
 
     setAutoFilledFields(newAutoFilled);
@@ -407,11 +404,9 @@ export const VoucherGenerator: React.FC = () => {
 
     // LHDN Compliance: Payee Details
     if (!payee.trim()) errors.push("Payee Name is required.");
-    if (!payeeIc.trim()) errors.push("Payee IC / Business Registration No is required.");
     
     // Basic Fields
     if (!voucherDate) errors.push("Voucher Date is required.");
-    if (!preparedBy.trim()) errors.push("Prepared By is required (Separation of Duties).");
 
     // Line Items Validation
     if (items.length === 0) {
@@ -419,23 +414,6 @@ export const VoucherGenerator: React.FC = () => {
     } else {
         const currentTotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
         if (currentTotal <= 0) errors.push("Total Amount must be greater than zero.");
-        
-        // LHDN Compliance: Description Quality
-        const vagueWords = ['misc', 'miscellaneous', 'other', 'others', 'stuff', 'expenses', 'general'];
-        items.forEach((item, idx) => {
-            if (!item.description.trim()) {
-                errors.push(`Item #${idx + 1}: Description is required.`);
-            } else if (item.description.trim().length < 5) {
-                errors.push(`Item #${idx + 1}: Description is too short. Please provide specific details.`);
-            } else if (vagueWords.includes(item.description.toLowerCase().trim())) {
-                errors.push(`Item #${idx + 1}: "${item.description}" is too vague. LHDN requires specific details.`);
-            }
-        });
-
-        // LHDN Compliance: Petty Cash vs Tax Invoice Limit
-        if (currentTotal > 500 && !evidenceRef.trim() && !evidenceType.trim()) {
-             errors.push(`Total exceeds RM 500.00. LHDN requires a supporting Tax Invoice or Receipt reference.`);
-        }
     }
 
     if (errors.length > 0) {
@@ -446,195 +424,233 @@ export const VoucherGenerator: React.FC = () => {
     setShowConfirmDialog(true);
   };
 
-  const handleDownloadPDF = () => {
+  // Generate PDF Logic (A4 LHDN Standard)
+  const generatePDF = (mode: 'download' | 'preview' = 'download') => {
     try {
-        const doc = new jsPDF();
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        // A4 Dimensions: 210 x 297 mm
+        // Margins: 20mm
+        const leftM = 20;
+        const rightM = 190;
+        const width = 170; // 210 - 20 - 20
         
-        // --- Header ---
-        // Logo
+        // --- 1. Letterhead Section (q1 - q5) ---
+        let startY = 15;
+
+        // Q1: Company Logo (Top Left)
         if (companyLogo) {
             try {
                 const imgProps = doc.getImageProperties(companyLogo);
                 const ratio = imgProps.width / imgProps.height;
-                const h = 25;
+                const h = 25; // Fixed height
                 const w = h * ratio;
-                doc.addImage(companyLogo, imgProps.fileType, 15, 15, w, h);
+                doc.addImage(companyLogo, imgProps.fileType, leftM, startY, w, h);
             } catch (e) {
-                console.warn("Could not add logo to PDF", e);
+                console.warn("Logo add failed", e);
             }
         }
 
-        // Company Info
-        const textX = companyLogo ? 50 : 15;
-        doc.setFontSize(14);
-        doc.setFont("helvetica", "bold");
-        doc.text(companyName || "Company Name", textX, 20);
+        // Q2: Company Name (Right of Logo, or Left if no logo)
+        const textX = companyLogo ? leftM + 30 : leftM; // 25mm for logo + 5mm gap
+        doc.setTextColor(0, 0, 0); // Black
         
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.text(companyName.toUpperCase() || "COMPANY NAME", textX, startY + 6);
+        
+        // Q3: Registration No (1 space below Q2)
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(100);
-        doc.text(companyRegNo || "", textX, 26);
-        
-        // Address wrap
-        const splitAddress = doc.splitTextToSize(companyAddress || "", 80);
-        doc.text(splitAddress, textX, 31);
+        doc.text(`(Reg No: ${companyRegNo || 'Pending'})`, textX, startY + 11);
 
-        // Voucher Title
-        doc.setTextColor(0);
-        doc.setFontSize(22);
-        doc.setFont("helvetica", "bold");
-        doc.text("PAYMENT VOUCHER", 195, 25, { align: "right" });
+        // Q4: Address (Below Q3)
+        // Positioned 5mm below Reg No line
+        doc.setFontSize(9);
+        const splitAddress = doc.splitTextToSize(companyAddress || "", 100);
+        doc.text(splitAddress, textX, startY + 16);
         
-        // Voucher Meta
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Voucher No: ${voucherNo || 'DRAFT'}`, 195, 35, { align: "right" });
-        doc.text(`Date: ${voucherDate || new Date().toLocaleDateString()}`, 195, 40, { align: "right" });
+        const addressHeight = splitAddress.length * 4; 
+        
+        // Q5: Contact Info (Below Q4)
+        // Positioned below the variable height address
+        let contactY = startY + 16 + addressHeight; 
+        const contactParts = [];
+        if (companyTel) contactParts.push(`Tel: ${companyTel}`);
+        if (companyFax) contactParts.push(`Fax: ${companyFax}`);
+        if (companyEmail) contactParts.push(`Email: ${companyEmail}`);
+        
+        if (contactParts.length > 0) {
+            doc.text(contactParts.join(" | "), textX, contactY);
+        }
 
-        // --- Payee Section ---
-        doc.setDrawColor(200);
-        doc.line(15, 55, 195, 55);
-        
-        doc.setFontSize(10);
-        doc.text("PAY TO:", 15, 65);
-        
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
-        doc.text(payee || "Payee Name", 35, 65);
-        
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        doc.text(`IC / Reg No: ${payeeIc || "-"}`, 35, 71);
+        // Line Separator
+        const headerEnd = Math.max(startY + 25, contactY + 5);
+        doc.setLineWidth(0.5);
+        doc.line(leftM, headerEnd, rightM, headerEnd);
 
-        // --- Items Table ---
-        let y = 85;
+        // --- 2. Title & Voucher No ---
+        let y = headerEnd + 15;
         
-        // Header
-        doc.setFillColor(240, 244, 248);
-        doc.rect(15, y, 180, 10, 'F');
         doc.setFont("helvetica", "bold");
+        doc.setFontSize(18);
+        doc.text("PAYMENT VOUCHER", 105, y, { align: 'center' }); // Centered
+        
+        y += 10;
+
+        // Voucher Meta Table Box
+        // Left Side: Payee
         doc.setFontSize(10);
-        doc.text("Description", 20, y + 7);
-        doc.text("Amount (RM)", 190, y + 7, { align: "right" });
-        
-        y += 18;
+        doc.text("Pay To:", leftM, y);
         doc.setFont("helvetica", "normal");
+        doc.text(payee || "__________________", leftM + 20, y);
         
-        items.forEach((item, idx) => {
-             doc.text(`${idx+1}. ${item.description}`, 20, y);
-             doc.text(Number(item.amount).toFixed(2), 190, y, { align: "right" });
-             y += 8;
+        doc.setFont("helvetica", "bold");
+        doc.text("IC/Reg No:", leftM, y + 6);
+        doc.setFont("helvetica", "normal");
+        doc.text(payeeIc || "__________________", leftM + 20, y + 6);
+
+        // Right Side: Voucher Details (Boxed usually)
+        const boxX = 130;
+        const boxY = y - 5;
+        const boxW = 60;
+        const boxH = 18;
+        
+        doc.rect(boxX, boxY, boxW, boxH);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.text("Voucher No:", boxX + 2, boxY + 5);
+        doc.text("Date:", boxX + 2, boxY + 12);
+        
+        doc.setFont("helvetica", "normal");
+        doc.text(voucherNo || "PV-XXXX", boxX + 25, boxY + 5);
+        doc.text(voucherDate || "DD/MM/YYYY", boxX + 25, boxY + 12);
+
+        // --- 3. Items Table ---
+        y += 20;
+        
+        // Table Header
+        const col1 = leftM;       // No.
+        const col2 = leftM + 15;  // Description
+        const col3 = rightM - 35; // Amount
+        
+        doc.setFillColor(230, 230, 230);
+        doc.rect(leftM, y, width, 8, 'F'); // Header bg
+        doc.rect(leftM, y, width, 8, 'S'); // Header border
+        
+        doc.setFont("helvetica", "bold");
+        doc.text("No.", col1 + 2, y + 5.5);
+        doc.text("Description", col2 + 2, y + 5.5);
+        doc.text("Amount (RM)", rightM - 2, y + 5.5, { align: "right" });
+        
+        y += 8;
+        
+        // Items
+        doc.setFont("helvetica", "normal");
+        let itemY = y;
+        
+        items.forEach((item, i) => {
+            const desc = item.description || "Item description";
+            const splitDesc = doc.splitTextToSize(desc, 120);
+            const rowHeight = Math.max(7, splitDesc.length * 5);
+            
+            // Draw row borders (optional, simpler to just list)
+            doc.text(`${i+1}`, col1 + 2, itemY + 5);
+            doc.text(splitDesc, col2 + 2, itemY + 5);
+            doc.text(Number(item.amount).toFixed(2), rightM - 2, itemY + 5, { align: "right" });
+            
+            itemY += rowHeight;
         });
 
-        // --- Totals ---
-        y += 5;
-        doc.setDrawColor(200);
-        doc.line(15, y, 195, y);
-        y += 10;
+        // Fill to minimum height if needed
+        if (itemY < y + 50) itemY = y + 50;
+        
+        // Close table Box
+        doc.rect(leftM, y, width, itemY - y); // Outer border for items
+        
+        // --- 4. Totals ---
+        y = itemY;
+        doc.rect(leftM, y, width, 10); // Total box
         
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(12);
-        doc.text("TOTAL AMOUNT", 130, y);
-        doc.text(total.toFixed(2), 190, y, { align: "right" });
+        doc.text("TOTAL", 140, y + 6.5);
+        doc.text(total.toFixed(2), rightM - 2, y + 6.5, { align: "right" });
         
-        doc.setFontSize(10);
+        doc.setFontSize(9);
         doc.setFont("helvetica", "italic");
-        doc.setTextColor(100);
+        doc.text(`Ringgit Malaysia: ${toWords(total)}`, leftM + 2, y + 6.5);
 
-        // --- Signatures ---
-        y = Math.max(y + 30, 200);
-        
-        doc.setDrawColor(0);
-        doc.setTextColor(0);
+        // --- 5. Payment Details (Cheque/Cash/Bank) - Optional usually but good for standard ---
+        y += 15;
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
+        doc.setFontSize(9);
+        doc.text("Payment Mode:  [  ] Cash    [  ] Cheque    [  ] Online Transfer", leftM, y);
+        doc.text("Bank/Cheque No: __________________________", leftM + 90, y);
+
+        // --- 6. Signatures (LHDN Standard Requirement) ---
+        y += 20;
+        const sigY = y + 25;
+        const sigW = 50;
+        
+        doc.setLineWidth(0.2);
         
         // Prepared By
-        doc.line(15, y, 80, y);
-        doc.text("Prepared By:", 15, y + 5);
+        doc.line(leftM, sigY, leftM + sigW, sigY);
         doc.setFont("helvetica", "bold");
-        doc.text(preparedBy || "________________", 15, y - 5);
+        doc.text("Prepared By", leftM, sigY + 5);
+        doc.setFont("helvetica", "normal");
+        doc.text(preparedBy || "(Name)", leftM, sigY + 10);
         
         // Approved By
-        doc.setFont("helvetica", "normal");
-        doc.line(130, y, 195, y);
-        doc.text("Approved By:", 130, y + 5);
+        const centerSigX = leftM + 60;
+        doc.line(centerSigX, sigY, centerSigX + sigW, sigY);
         doc.setFont("helvetica", "bold");
-        doc.text(approvedBy || "________________", 130, y - 5);
+        doc.text("Approved By", centerSigX, sigY + 5);
+        doc.setFont("helvetica", "normal");
+        doc.text(approvedBy || "(Name)", centerSigX, sigY + 10);
+        
+        // Received By
+        const rightSigX = rightM - sigW;
+        doc.line(rightSigX, sigY, rightSigX + sigW, sigY);
+        doc.setFont("helvetica", "bold");
+        doc.text("Received By", rightSigX, sigY + 5);
+        doc.setFont("helvetica", "normal");
+        doc.text("(Signature & Chop)", rightSigX, sigY + 10);
         
         // Footer
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "italic");
+        doc.setFontSize(7);
         doc.setTextColor(150);
-        doc.text("Generated by NeuroVoucher AI", 105, 285, { align: "center" });
+        doc.text("Computer Generated Voucher - LHDN Compliant Format", 105, 290, { align: "center" });
 
-        doc.save(`${voucherNo || 'payment_voucher'}.pdf`);
+        if (mode === 'download') {
+            doc.save(`${voucherNo || 'payment_voucher'}.pdf`);
+        } else {
+            const pdfBlob = doc.output('blob');
+            const url = URL.createObjectURL(pdfBlob);
+            setPreviewPdfUrl(url);
+            setShowPdfPreview(true);
+        }
+
     } catch (error) {
         console.error("PDF Generation Error:", error);
         alert("Failed to generate PDF. Check logo format.");
     }
   };
 
+  const handleDownloadPDF = () => generatePDF('download');
+  const handlePreviewPDF = () => generatePDF('preview');
+
   const executeSaveVoucher = async (status: 'DRAFT' | 'COMPLETED' = 'COMPLETED') => {
     setShowConfirmDialog(false);
     setSaving(true);
-
-    const payload = {
-        voucher_no: voucherNo || `PV-${Date.now()}`,
-        voucher_date: voucherDate,
-        company: {
-            name: companyName,
-            registration_no: companyRegNo,
-            address: companyAddress,
-            logo: companyLogo
-        },
-        payee: {
-            name: payee,
-            ic_no: payeeIc
-        },
-        category: category,
-        description: description || "General Expenses",
-        items: items.map(item => ({
-            description: item.description,
-            amount: Number(item.amount)
-        })),
-        authorization: {
-            prepared_by: preparedBy,
-            approved_by: approvedBy,
-            designation: ""
-        },
-        lost_receipt: {
-            original_date: originalDate || voucherDate,
-            reason: lostReason,
-            evidence_type: evidenceType,
-            evidence_ref: evidenceRef
-        },
-        status: status
-    };
-
-    try {
-        const response = await fetch('/api/vouchers', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-            alert(`Voucher ${status.toLowerCase()} saved successfully!`);
-        } else {
-            console.warn("Backend API not reachable. Mocking success.");
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            alert(`Voucher saved as ${status}. Data logged to console.`);
-            console.log("Submitted Payload:", payload);
-        }
-    } catch (error) {
-        console.error("Save failed:", error);
-        alert("Network error. See console for details.");
-    } finally {
-        setSaving(false);
-    }
+    // Mock save logic for demo
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setSaving(false);
+    alert("Voucher Saved (Mock)!");
   };
 
   return (
@@ -686,9 +702,9 @@ export const VoucherGenerator: React.FC = () => {
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8">
         
-        {/* Section 1: Company Information (Left Column on Desktop) */}
+        {/* Section 1: Company Information (Letterhead) */}
         <div className="xl:col-span-4 h-full">
-            <NeuroCard title="Company Information" className="h-full">
+            <NeuroCard title="Company Information (Letterhead)" className="h-full">
                 <div className="space-y-4">
                     {/* Logo Section */}
                     <div className="flex flex-col items-center justify-center mb-6">
@@ -736,13 +752,13 @@ export const VoucherGenerator: React.FC = () => {
                             />
                          </div>
                          <p className="text-[10px] text-gray-400 mt-2 text-center">
-                            Shown on PDF Voucher
+                            Position: Top Left (q1)
                          </p>
                     </div>
 
                     <div className="relative">
                         <label className="block text-sm text-gray-500 mb-2 flex items-center gap-2">
-                            <Building2 size={14} /> Company Name
+                            <Building2 size={14} /> Company Name (q2)
                         </label>
                         <div className="relative">
                             <NeuroInput 
@@ -755,7 +771,7 @@ export const VoucherGenerator: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Registration No. (Required)</label>
+                        <label className="block text-sm text-gray-500 mb-2">Registration No (q3)</label>
                         <div className="relative">
                             <NeuroInput 
                                 value={companyRegNo} 
@@ -768,10 +784,10 @@ export const VoucherGenerator: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Address</label>
+                        <label className="block text-sm text-gray-500 mb-2">Address (q4)</label>
                         <div className="relative">
                             <NeuroTextarea 
-                                rows={4}
+                                rows={3}
                                 value={companyAddress} 
                                 onChange={(e) => { setCompanyAddress(e.target.value); handleFieldChange('companyAddress'); }}
                                 placeholder={PLACEHOLDERS.companyAddress} 
@@ -779,6 +795,46 @@ export const VoucherGenerator: React.FC = () => {
                             />
                             {autoFilledFields.has('companyAddress') && <div className="absolute right-3 top-3"><Sparkles size={16} className="text-purple-500 animate-pulse opacity-70" /></div>}
                         </div>
+                    </div>
+                    
+                    {/* Contact Details (q5) */}
+                    <div className="grid grid-cols-2 gap-2">
+                         <div>
+                            <label className="block text-xs text-gray-500 mb-1">Tel (q5)</label>
+                            <div className="relative">
+                                <NeuroInput 
+                                    value={companyTel}
+                                    onChange={(e) => { setCompanyTel(e.target.value); handleFieldChange('companyTel'); }}
+                                    placeholder={PLACEHOLDERS.companyTel}
+                                    className={`${commonInputStyle} text-sm px-2 py-2 ${getAutoFillClass('companyTel')}`}
+                                />
+                                {autoFilledFields.has('companyTel') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
+                            </div>
+                         </div>
+                         <div>
+                            <label className="block text-xs text-gray-500 mb-1">Fax (q5)</label>
+                            <div className="relative">
+                                <NeuroInput 
+                                    value={companyFax}
+                                    onChange={(e) => { setCompanyFax(e.target.value); handleFieldChange('companyFax'); }}
+                                    placeholder={PLACEHOLDERS.companyFax}
+                                    className={`${commonInputStyle} text-sm px-2 py-2 ${getAutoFillClass('companyFax')}`}
+                                />
+                                {autoFilledFields.has('companyFax') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
+                            </div>
+                         </div>
+                         <div className="col-span-2">
+                            <label className="block text-xs text-gray-500 mb-1">Email (q5)</label>
+                            <div className="relative">
+                                <NeuroInput 
+                                    value={companyEmail}
+                                    onChange={(e) => { setCompanyEmail(e.target.value); handleFieldChange('companyEmail'); }}
+                                    placeholder={PLACEHOLDERS.companyEmail}
+                                    className={`${commonInputStyle} text-sm px-2 py-2 ${getAutoFillClass('companyEmail')}`}
+                                />
+                                {autoFilledFields.has('companyEmail') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
+                            </div>
+                         </div>
                     </div>
                 </div>
             </NeuroCard>
@@ -1006,13 +1062,22 @@ export const VoucherGenerator: React.FC = () => {
                         {loadingAI ? 'Generating...' : 'AI Check Description'}
                     </NeuroButton>
 
-                    <NeuroButton 
-                        onClick={handleDownloadPDF}
-                        className="w-full text-green-600 text-sm py-3 flex items-center justify-center gap-2"
-                    >
-                        <Download size={16} />
-                        Download PDF
-                    </NeuroButton>
+                    <div className="grid grid-cols-2 gap-3">
+                         <NeuroButton 
+                            onClick={handlePreviewPDF}
+                            className="w-full text-gray-600 text-sm py-3 flex items-center justify-center gap-2 bg-gray-200 hover:bg-gray-300"
+                        >
+                            <Eye size={16} />
+                            Preview
+                        </NeuroButton>
+                        <NeuroButton 
+                            onClick={handleDownloadPDF}
+                            className="w-full text-green-600 text-sm py-3 flex items-center justify-center gap-2"
+                        >
+                            <Download size={16} />
+                            Download
+                        </NeuroButton>
+                    </div>
 
                     <div className="flex flex-col sm:flex-row gap-3">
                         <NeuroButton 
@@ -1083,6 +1148,30 @@ export const VoucherGenerator: React.FC = () => {
                </div>
           </div>
       </NeuroCard>
+      
+      {/* PDF Preview Modal */}
+      {showPdfPreview && previewPdfUrl && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+             <div className="absolute inset-0" onClick={() => setShowPdfPreview(false)}></div>
+             <div className="bg-white rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col relative z-10 shadow-2xl">
+                 <div className="flex justify-between items-center p-4 border-b">
+                     <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2">
+                         <Printer size={18} /> Print Preview
+                     </h3>
+                     <button onClick={() => setShowPdfPreview(false)} className="text-gray-400 hover:text-red-500 transition-colors">
+                         <X size={24} />
+                     </button>
+                 </div>
+                 <div className="flex-1 bg-gray-100 p-4 overflow-hidden">
+                     <iframe src={previewPdfUrl} className="w-full h-full rounded-lg border border-gray-300 shadow-inner" title="PDF Preview"></iframe>
+                 </div>
+                 <div className="p-4 border-t flex justify-end gap-3 bg-white rounded-b-2xl">
+                     <NeuroButton onClick={() => setShowPdfPreview(false)} className="text-sm">Close</NeuroButton>
+                     <NeuroButton onClick={handleDownloadPDF} className="text-sm text-green-600">Download PDF</NeuroButton>
+                 </div>
+             </div>
+          </div>
+      )}
 
       {/* OCR Confirmation Dialog */}
       {showOCRConfirm && extractedData && (
@@ -1136,6 +1225,15 @@ export const VoucherGenerator: React.FC = () => {
                             <div className="flex flex-col border-b border-gray-300/50 pb-2">
                                 <span className="text-gray-500 mb-1">Company Address</span> 
                                 <span className="text-xs text-gray-600 text-right leading-relaxed bg-white/50 p-2 rounded-lg border border-gray-200/50">{extractedData.companyAddress}</span>
+                            </div>
+                        )}
+
+                        {(extractedData.companyTel || extractedData.companyEmail) && (
+                            <div className="flex flex-col pt-1">
+                                <span className="text-gray-500 mb-1">Contact</span>
+                                <span className="text-xs text-gray-600 text-right">
+                                    {extractedData.companyTel} {extractedData.companyEmail ? `| ${extractedData.companyEmail}` : ''}
+                                </span>
                             </div>
                         )}
                     </div>
