@@ -1,0 +1,8 @@
+{
+  "name": "Copy of NeuroVoucher AI",
+  "description": "A futuristic, neumorphic Cash Voucher Generator powered by Gemini 2.5 and 3.0 models for automated processing, voice interaction, and image editing.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
