@@ -198,12 +198,17 @@ export const extractReceiptData = async (base64Image: string, language: string =
 
     const jsonText = response.text;
     if (jsonText) {
-        return JSON.parse(jsonText);
+        try {
+            return JSON.parse(jsonText);
+        } catch (e) {
+            throw new Error("PARSING_FAILED");
+        }
     }
-    return null;
+    throw new Error("NO_RESPONSE_TEXT");
   } catch (error) {
     console.error("Receipt Extraction Error:", error);
-    return null;
+    // Rethrow to allow specific error handling in UI
+    throw error;
   }
 }
 

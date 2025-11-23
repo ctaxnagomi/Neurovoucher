@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { NeuroCard, NeuroInput, NeuroButton } from '../components/NeuroComponents';
 import { createChatSession } from '../services/geminiService';
 import { Send, Bot, User, Sparkles } from 'lucide-react';
@@ -12,12 +13,23 @@ export const ChatAssistant: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const chatSessionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
 
   useEffect(() => {
     if (!chatSessionRef.current) {
         chatSessionRef.current = createChatSession();
     }
   }, []);
+
+  // Handle auto-fill from Dashboard insights
+  useEffect(() => {
+    const state = location.state as { initialInput?: string };
+    if (state?.initialInput) {
+        setInput(state.initialInput);
+        // Clear history state to prevent re-filling on refresh (optional, depends on router behavior)
+        window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

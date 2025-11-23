@@ -260,6 +260,26 @@ export const VoucherGenerator: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate File Type
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+    if (!validTypes.includes(file.type)) {
+        alert("Unsupported file type. Please upload a JPEG, PNG, or WebP image.");
+        // Clear inputs
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        if (companyDocInputRef.current) companyDocInputRef.current.value = '';
+        return;
+    }
+
+    // Validate File Size (10MB limit)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+        alert("File size too large. Please upload an image smaller than 10MB.");
+        // Clear inputs
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        if (companyDocInputRef.current) companyDocInputRef.current.value = '';
+        return;
+    }
+
     setScanning(true);
     const reader = new FileReader();
     reader.onloadend = async () => {
@@ -269,21 +289,43 @@ export const VoucherGenerator: React.FC = () => {
             const data = await extractReceiptData(base64String, ocrLanguage);
             
             if (!data || Object.keys(data).length === 0) {
-                alert('Could not extract data from the image. Please try a clearer photo.');
-                setScanning(false);
-                return;
+                // If service returns empty, treat as extraction failure
+                throw new Error("EMPTY_DATA");
             }
 
             // Store extracted data for confirmation
             setExtractedData(data);
             setShowOCRConfirm(true);
             
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Error processing image.');
+            
+            let message = "An error occurred while scanning the receipt.";
+            const errStr = error.toString();
+            const errMsg = error.message || "";
+
+            if (errMsg.includes("PARSING_FAILED") || errMsg === "EMPTY_DATA") {
+                message = "Could not extract text. The image might be too blurry, low contrast, or not a valid receipt. Please try a clearer photo.";
+            } else if (errMsg.includes("NO_RESPONSE_TEXT")) {
+                message = "The AI could not generate a response. The image might contain prohibited content or is unclear.";
+            } else if (errMsg.includes("API_KEY") || errStr.includes("403")) {
+                message = "API Authorization failed. Please check your API Key in Settings.";
+            } else if (errStr.includes("Failed to fetch") || errStr.includes("Network")) {
+                message = "Network connection error. Please check your internet connection and try again.";
+            } else if (errStr.includes("503") || errStr.includes("500")) {
+                message = "AI Service is currently unavailable. Please try again in a moment.";
+            } else if (errStr.includes("400")) {
+                message = "Invalid request. The image format might be corrupted.";
+            }
+
+            alert(message);
         } finally {
             setScanning(false);
         }
+    };
+    reader.onerror = () => {
+        alert("Failed to read the file. Please try again.");
+        setScanning(false);
     };
     reader.readAsDataURL(file);
     // Reset inputs
@@ -314,45 +356,46 @@ export const VoucherGenerator: React.FC = () => {
   const applyOCRData = () => {
     if (!extractedData) return;
 
-    // We track which fields are auto-filled to allow overwriting them on subsequent scans
-    // BUT we preserve user-manually-entered data (which removes the field from this set)
+    // We track which fields are auto-filled to allow styling
     const newAutoFilled = new Set<string>(autoFilledFields);
 
-    // Helper: Determine if we should update a field
-    const shouldUpdate = (currentVal: string, fieldKey: string, placeholder?: string) => {
+    /**
+     * Helper: Determine if we should update a field based on strict user constraints.
+     * Rule 1: Always update if current value is empty.
+     * Rule 2: Always update if current value matches the placeholder.
+     * Rule 3: Update if previously auto-filled (only for specific fields where requested).
+     */
+    const shouldUpdate = (currentVal: string, fieldKey: string, placeholder?: string, allowAutoFillOverwrite: boolean = false) => {
         const val = (currentVal || '').trim();
         const ph = (placeholder || '').trim();
 
         // 1. If currently empty, overwrite.
-        if (val === '') return true;
+        if (val.length === 0) return true;
         
-        // 2. If matches placeholder (user hasn't typed anything meaningful), overwrite.
-        if (ph && val === ph) return true;
+        // 2. If matches placeholder (treat as empty/default state). Case-insensitive check.
+        if (ph && val.toLowerCase() === ph.toLowerCase()) return true;
         
-        // 3. If currently marked as auto-filled (from previous AI action), overwrite.
-        if (autoFilledFields.has(fieldKey)) return true;
+        // 3. If previously auto-filled, allow update if flag is set
+        if (allowAutoFillOverwrite && autoFilledFields.has(fieldKey)) return true;
         
-        // Otherwise, it's user-entered content, so preserve it.
         return false;
     };
 
-    const applyIfEligible = (currentValue: string, newValue: any, fieldKey: string, setter: (val: any) => void, placeholder?: string) => {
-        if (newValue && shouldUpdate(currentValue, fieldKey, placeholder)) {
+    const applyIfEligible = (currentValue: string, newValue: any, fieldKey: string, setter: (val: any) => void, placeholder?: string, allowAutoFillOverwrite: boolean = false) => {
+        if (newValue && shouldUpdate(currentValue, fieldKey, placeholder, allowAutoFillOverwrite)) {
             setter(newValue);
             newAutoFilled.add(fieldKey);
         }
     };
 
     // Sanity Check: Ensure extracted Company Info (Bill To) isn't just the Payee (Merchant) repeated.
-    // In Voucher context: Company = Issuer, Payee = Merchant. 
-    // If OCR extracts Merchant as "Company", we shouldn't overwrite the Issuer details.
     const isCompanySameAsPayee = extractedData.companyName && extractedData.payeeName && (
         extractedData.companyName.toLowerCase().trim() === extractedData.payeeName.toLowerCase().trim() ||
         extractedData.companyName.toLowerCase().includes(extractedData.payeeName.toLowerCase())
     );
 
     if (isCompanySameAsPayee) {
-        console.warn("OCR Warning: Extracted Company Name is identical or similar to Payee Name. Skipping Company Auto-fill to prevent overwriting issuer details.");
+        console.warn("OCR Warning: Extracted Company Name is identical to Payee Name. Skipping Company Auto-fill.");
     }
 
     // Pre-fill Payee
@@ -374,12 +417,17 @@ export const VoucherGenerator: React.FC = () => {
     
     // Pre-fill Company - Only if it looks valid and distinct from Payee
     if (!isCompanySameAsPayee) {
+        // Essential Company Info
         applyIfEligible(companyName, extractedData.companyName, 'companyName', setCompanyName, PLACEHOLDERS.companyName);
         applyIfEligible(companyRegNo, extractedData.companyRegNo, 'companyRegNo', setCompanyRegNo, PLACEHOLDERS.companyRegNo);
         applyIfEligible(companyAddress, extractedData.companyAddress, 'companyAddress', setCompanyAddress, PLACEHOLDERS.companyAddress);
-        applyIfEligible(companyTel, extractedData.companyTel, 'companyTel', setCompanyTel, PLACEHOLDERS.companyTel);
-        applyIfEligible(companyEmail, extractedData.companyEmail, 'companyEmail', setCompanyEmail, PLACEHOLDERS.companyEmail);
-        applyIfEligible(companyFax, extractedData.companyFax, 'companyFax', setCompanyFax, PLACEHOLDERS.companyFax);
+
+        // Contact Information - Protected Fields (Allow overwrite if previously auto-filled)
+        // This ensures better OCR scans can improve these fields without locking them, 
+        // while still respecting manual user entry (unless empty).
+        applyIfEligible(companyTel, extractedData.companyTel, 'companyTel', setCompanyTel, PLACEHOLDERS.companyTel, true);
+        applyIfEligible(companyEmail, extractedData.companyEmail, 'companyEmail', setCompanyEmail, PLACEHOLDERS.companyEmail, true);
+        applyIfEligible(companyFax, extractedData.companyFax, 'companyFax', setCompanyFax, PLACEHOLDERS.companyFax, true);
     }
 
     // Intelligent Item & Amount Handling
@@ -400,15 +448,14 @@ export const VoucherGenerator: React.FC = () => {
             // Check if description is effectively empty
             const isDescEmpty = !item.description || item.description === PLACEHOLDERS.description || item.description.trim() === '';
 
-            // Logic: Update if amount is 0 OR was previously auto-filled
-            // Strict check: if user entered an amount (and it's not 0), don't touch it unless it was auto-filled previously.
-            const isAmountEditable = Number(item.amount) === 0 || autoFilledFields.has(amountKey);
+            // Check if Amount is editable (only if 0)
+            const isAmountEditable = Number(item.amount) === 0;
 
             if (isAmountEditable) {
                  const updatedItem = { ...item, amount: extractedData.totalAmount };
                  newAutoFilled.add(amountKey);
                  
-                 // Only add default description if completely empty or placeholder
+                 // Only add default description if completely empty
                  if (isDescEmpty) {
                      updatedItem.description = 'Receipt Import';
                  }
