@@ -314,54 +314,76 @@ export const VoucherGenerator: React.FC = () => {
   const applyOCRData = () => {
     if (!extractedData) return;
 
-    // Use existing auto-filled fields to preserve previous fills if merging
+    // We track which fields are auto-filled to allow overwriting them on subsequent scans
+    // BUT we preserve user-manually-entered data (which removes the field from this set)
     const newAutoFilled = new Set<string>(autoFilledFields);
 
-    // Refined isEmpty check: Checks for empty string OR matching placeholder value
-    const isEmpty = (val: string, placeholder?: string) => {
-        if (!val || val.trim() === '') return true;
-        if (placeholder && val.trim() === placeholder) return true;
+    // Helper: Determine if we should update a field
+    const shouldUpdate = (currentVal: string, fieldKey: string, placeholder?: string) => {
+        const val = (currentVal || '').trim();
+        const ph = (placeholder || '').trim();
+
+        // 1. If currently empty, overwrite.
+        if (val === '') return true;
+        
+        // 2. If matches placeholder (user hasn't typed anything meaningful), overwrite.
+        if (ph && val === ph) return true;
+        
+        // 3. If currently marked as auto-filled (from previous AI action), overwrite.
+        if (autoFilledFields.has(fieldKey)) return true;
+        
+        // Otherwise, it's user-entered content, so preserve it.
         return false;
     };
 
-    const applyIfEmpty = (currentValue: string, newValue: any, fieldKey: string, setter: (val: any) => void, placeholder?: string) => {
-        // Only apply if the current value is considered empty and we have a new value
-        if (newValue && isEmpty(currentValue, placeholder)) {
+    const applyIfEligible = (currentValue: string, newValue: any, fieldKey: string, setter: (val: any) => void, placeholder?: string) => {
+        if (newValue && shouldUpdate(currentValue, fieldKey, placeholder)) {
             setter(newValue);
             newAutoFilled.add(fieldKey);
         }
     };
 
+    // Sanity Check: Ensure extracted Company Info (Bill To) isn't just the Payee (Merchant) repeated.
+    // In Voucher context: Company = Issuer, Payee = Merchant. 
+    // If OCR extracts Merchant as "Company", we shouldn't overwrite the Issuer details.
+    const isCompanySameAsPayee = extractedData.companyName && extractedData.payeeName && (
+        extractedData.companyName.toLowerCase().trim() === extractedData.payeeName.toLowerCase().trim() ||
+        extractedData.companyName.toLowerCase().includes(extractedData.payeeName.toLowerCase())
+    );
+
+    if (isCompanySameAsPayee) {
+        console.warn("OCR Warning: Extracted Company Name is identical or similar to Payee Name. Skipping Company Auto-fill to prevent overwriting issuer details.");
+    }
+
     // Pre-fill Payee
-    applyIfEmpty(payee, extractedData.payeeName, 'payee', setPayee, PLACEHOLDERS.payee);
-    applyIfEmpty(payeeIc, extractedData.payeeId, 'payeeIc', setPayeeIc, PLACEHOLDERS.payeeIc);
+    applyIfEligible(payee, extractedData.payeeName, 'payee', setPayee, PLACEHOLDERS.payee);
+    applyIfEligible(payeeIc, extractedData.payeeId, 'payeeIc', setPayeeIc, PLACEHOLDERS.payeeIc);
     
     // Apply Date to both Voucher Date and Original Expense Date
     if (extractedData.date) {
-        if (isEmpty(voucherDate)) {
+        if (shouldUpdate(voucherDate, 'voucherDate')) {
             setVoucherDate(extractedData.date);
             newAutoFilled.add('voucherDate');
         }
         
-        if (isEmpty(originalDate)) {
+        if (shouldUpdate(originalDate, 'originalDate')) {
             setOriginalDate(extractedData.date); 
             newAutoFilled.add('originalDate');
         }
     }
     
-    // Pre-fill Company (if 'Bill To' detected or specific company doc scanned)
-    applyIfEmpty(companyName, extractedData.companyName, 'companyName', setCompanyName, PLACEHOLDERS.companyName);
-    applyIfEmpty(companyRegNo, extractedData.companyRegNo, 'companyRegNo', setCompanyRegNo, PLACEHOLDERS.companyRegNo);
-    applyIfEmpty(companyAddress, extractedData.companyAddress, 'companyAddress', setCompanyAddress, PLACEHOLDERS.companyAddress);
-    
-    // Apply Contact Info
-    applyIfEmpty(companyTel, extractedData.companyTel, 'companyTel', setCompanyTel, PLACEHOLDERS.companyTel);
-    applyIfEmpty(companyEmail, extractedData.companyEmail, 'companyEmail', setCompanyEmail, PLACEHOLDERS.companyEmail);
-    applyIfEmpty(companyFax, extractedData.companyFax, 'companyFax', setCompanyFax, PLACEHOLDERS.companyFax);
+    // Pre-fill Company - Only if it looks valid and distinct from Payee
+    if (!isCompanySameAsPayee) {
+        applyIfEligible(companyName, extractedData.companyName, 'companyName', setCompanyName, PLACEHOLDERS.companyName);
+        applyIfEligible(companyRegNo, extractedData.companyRegNo, 'companyRegNo', setCompanyRegNo, PLACEHOLDERS.companyRegNo);
+        applyIfEligible(companyAddress, extractedData.companyAddress, 'companyAddress', setCompanyAddress, PLACEHOLDERS.companyAddress);
+        applyIfEligible(companyTel, extractedData.companyTel, 'companyTel', setCompanyTel, PLACEHOLDERS.companyTel);
+        applyIfEligible(companyEmail, extractedData.companyEmail, 'companyEmail', setCompanyEmail, PLACEHOLDERS.companyEmail);
+        applyIfEligible(companyFax, extractedData.companyFax, 'companyFax', setCompanyFax, PLACEHOLDERS.companyFax);
+    }
 
     // Intelligent Item & Amount Handling
     if (extractedData.totalAmount) {
-        // Case 1: No items exist - create new item
         if (items.length === 0) {
             const newItemId = Date.now().toString();
             setItems([{
@@ -371,19 +393,22 @@ export const VoucherGenerator: React.FC = () => {
             }]);
             newAutoFilled.add(`item-${newItemId}-amount`);
         } 
-        // Case 2: Single item exists - update if empty/default
         else if (items.length === 1) {
             const item = items[0];
-            const isAmountZero = Number(item.amount) === 0;
-            const isDescEmpty = isEmpty(item.description, PLACEHOLDERS.description);
+            const amountKey = `item-${item.id}-amount`;
+            
+            // Check if description is effectively empty
+            const isDescEmpty = !item.description || item.description === PLACEHOLDERS.description || item.description.trim() === '';
 
-            // If amount is 0 (default/empty), we can fill it.
-            // If user has entered an amount (!= 0), we do NOT overwrite it.
-            if (isAmountZero) {
+            // Logic: Update if amount is 0 OR was previously auto-filled
+            // Strict check: if user entered an amount (and it's not 0), don't touch it unless it was auto-filled previously.
+            const isAmountEditable = Number(item.amount) === 0 || autoFilledFields.has(amountKey);
+
+            if (isAmountEditable) {
                  const updatedItem = { ...item, amount: extractedData.totalAmount };
-                 newAutoFilled.add(`item-${item.id}-amount`);
+                 newAutoFilled.add(amountKey);
                  
-                 // Only add default description if completely empty
+                 // Only add default description if completely empty or placeholder
                  if (isDescEmpty) {
                      updatedItem.description = 'Receipt Import';
                  }
@@ -708,7 +733,7 @@ export const VoucherGenerator: React.FC = () => {
         <div className="xl:col-span-4 h-full">
             <NeuroCard className="h-full">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">Company Information (Letterhead)</h3>
+                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">Company Information</h3>
                     <button 
                         onClick={() => companyDocInputRef.current?.click()}
                         className="text-xs flex items-center gap-2 text-blue-500 hover:text-blue-700 transition-colors bg-blue-50 px-2 py-1 rounded-md"
@@ -774,13 +799,13 @@ export const VoucherGenerator: React.FC = () => {
                             />
                          </div>
                          <p className="text-[10px] text-gray-400 mt-2 text-center">
-                            Position: Top Left (q1)
+                            Position: Top Left
                          </p>
                     </div>
 
                     <div className="relative">
                         <label className="block text-sm text-gray-500 mb-2 flex items-center gap-2">
-                            <Building2 size={14} /> Company Name (q2)
+                            <Building2 size={14} /> Company Name
                         </label>
                         <div className="relative">
                             <NeuroInput 
@@ -793,7 +818,7 @@ export const VoucherGenerator: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Registration No (q3)</label>
+                        <label className="block text-sm text-gray-500 mb-2">Registration No</label>
                         <div className="relative">
                             <NeuroInput 
                                 value={companyRegNo} 
@@ -806,7 +831,7 @@ export const VoucherGenerator: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Address (q4)</label>
+                        <label className="block text-sm text-gray-500 mb-2">Address</label>
                         <div className="relative">
                             <NeuroTextarea 
                                 rows={3}
@@ -822,38 +847,41 @@ export const VoucherGenerator: React.FC = () => {
                     {/* Contact Details (q5) */}
                     <div className="grid grid-cols-2 gap-2">
                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">Tel (q5)</label>
+                            <label className="block text-xs text-gray-500 mb-1">Tel</label>
                             <div className="relative">
                                 <NeuroInput 
                                     value={companyTel}
                                     onChange={(e) => { setCompanyTel(e.target.value); handleFieldChange('companyTel'); }}
                                     placeholder={PLACEHOLDERS.companyTel}
-                                    className={`${commonInputStyle} text-sm px-2 py-2 ${getAutoFillClass('companyTel')}`}
+                                    className={`${commonInputStyle} text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyTel')}`}
                                 />
+                                <Phone size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyTel') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
                             </div>
                          </div>
                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">Fax (q5)</label>
+                            <label className="block text-xs text-gray-500 mb-1">Fax</label>
                             <div className="relative">
                                 <NeuroInput 
                                     value={companyFax}
                                     onChange={(e) => { setCompanyFax(e.target.value); handleFieldChange('companyFax'); }}
                                     placeholder={PLACEHOLDERS.companyFax}
-                                    className={`${commonInputStyle} text-sm px-2 py-2 ${getAutoFillClass('companyFax')}`}
+                                    className={`${commonInputStyle} text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyFax')}`}
                                 />
+                                <Printer size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyFax') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
                             </div>
                          </div>
                          <div className="col-span-2">
-                            <label className="block text-xs text-gray-500 mb-1">Email (q5)</label>
+                            <label className="block text-xs text-gray-500 mb-1">Email</label>
                             <div className="relative">
                                 <NeuroInput 
                                     value={companyEmail}
                                     onChange={(e) => { setCompanyEmail(e.target.value); handleFieldChange('companyEmail'); }}
                                     placeholder={PLACEHOLDERS.companyEmail}
-                                    className={`${commonInputStyle} text-sm px-2 py-2 ${getAutoFillClass('companyEmail')}`}
+                                    className={`${commonInputStyle} text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyEmail')}`}
                                 />
+                                <Mail size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyEmail') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
                             </div>
                          </div>
