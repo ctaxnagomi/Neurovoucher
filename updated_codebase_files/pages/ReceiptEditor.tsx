@@ -110,12 +110,12 @@ export const ReceiptEditor: React.FC = () => {
 
                         <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100">
                             <div className="flex items-center justify-between mb-2">
-                                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
                                     <input 
                                         type="checkbox" 
                                         checked={enableTranslation}
                                         onChange={(e) => setEnableTranslation(e.target.checked)}
-                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
                                     />
                                     <span className="font-medium">Enable Translation</span>
                                 </label>
@@ -128,7 +128,7 @@ export const ReceiptEditor: React.FC = () => {
                                     <NeuroSelect 
                                         value={targetLanguage} 
                                         onChange={(e) => setTargetLanguage(e.target.value)}
-                                        className="!py-2 !text-sm"
+                                        className="!py-2 !text-sm !bg-white"
                                     >
                                         {SUPPORTED_LANGUAGES.map(lang => (
                                             <option key={lang.code} value={lang.code}>{lang.label}</option>

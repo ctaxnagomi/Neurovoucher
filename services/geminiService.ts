@@ -64,7 +64,7 @@ export const createChatSession = () => {
   return client.chats.create({
     model: GeminiModel.CHAT_PRO,
     config: {
-      systemInstruction: "You are an expert financial advisor specializing in Malaysian LHDN cash vouchers and tax compliance. Help the user categorize expenses and fix errors.",
+      systemInstruction: "You are an expert financial advisor specializing in Malaysian LHDN cash vouchers and tax compliance. Help the user categorize expenses and fix errors. Strictly adhere to LHDN Malaysia guidelines (e.g., Public Rulings on substantiation of expense). Remind users that expenses must be wholly and exclusively incurred in the production of income. Cash vouchers require Payee Name, IC/Passport, and clear description.",
     }
   });
 };

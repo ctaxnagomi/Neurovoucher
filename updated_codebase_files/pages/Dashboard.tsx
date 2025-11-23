@@ -40,18 +40,20 @@ export const Dashboard: React.FC = () => {
         </NeuroCard>
       </div>
 
-      <NeuroCard title="Weekly Expenditure" className="h-[400px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
-            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#718096'}} />
-            <YAxis axisLine={false} tickLine={false} tick={{fill: '#718096'}} />
-            <Tooltip 
-                cursor={{fill: '#cbd5e0', opacity: 0.2}}
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '9px 9px 16px rgba(163,177,198,0.6)', backgroundColor: '#e0e5ec', color: '#4a5568' }}
-            />
-            <Bar dataKey="amt" fill="#63b3ed" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+      <NeuroCard title="Weekly Expenditure" className="h-[400px] flex flex-col">
+        <div className="flex-1 min-h-0 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#718096'}} dy={10} />
+              <YAxis axisLine={false} tickLine={false} tick={{fill: '#718096'}} />
+              <Tooltip 
+                  cursor={{fill: '#cbd5e0', opacity: 0.2}}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '9px 9px 16px rgba(163,177,198,0.6)', backgroundColor: '#e0e5ec', color: '#4a5568' }}
+              />
+              <Bar dataKey="amt" fill="#63b3ed" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </NeuroCard>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

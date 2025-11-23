@@ -12,11 +12,11 @@ const PLACEHOLDERS = {
     companyRegNo: "e.g., 202301000XXX",
     companyAddress: "Full business address...",
     payee: "e.g., Ali Bin Abu",
-    payeeIc: "e.g., 880101-14-XXXX",
+    payeeIc: "e.g., 880101-14-XXXX (Required)",
     voucherNo: "PV-YYYY-XXXX",
-    description: "e.g., Payment for office supplies and refreshments",
-    evidenceType: "e.g., Bank Statement",
-    evidenceRef: "e.g., TRX-123456",
+    description: "e.g., Purchase of A4 Paper (Avoid 'Misc')",
+    evidenceType: "e.g., Tax Invoice / Receipt",
+    evidenceRef: "e.g., INV-2024-001",
     lostReason: "Brief explanation for why the original receipt is missing..."
 };
 
@@ -27,7 +27,8 @@ const AutoFilledIndicator = () => (
 );
 
 // Unified style for consistent "white" look across all inputs (replacing dark neumorphic shadow)
-const commonInputStyle = "w-full !bg-white !shadow-none border border-gray-200/60 focus:!border-blue-400 focus:!ring-4 focus:!ring-blue-50 transition-all duration-300 placeholder:text-gray-400 text-gray-700";
+// Added min-w-0 to prevent flex overflow
+const commonInputStyle = "w-full !bg-white !shadow-none border border-gray-200/60 focus:!border-blue-400 focus:!ring-4 focus:!ring-blue-50 transition-all duration-300 placeholder:text-gray-400 text-gray-700 min-w-0";
 
 export const VoucherGenerator: React.FC = () => {
   // Voucher / Payee Details
@@ -85,28 +86,42 @@ export const VoucherGenerator: React.FC = () => {
   // Fetch Categories on Mount
   useEffect(() => {
     const fetchCategories = async () => {
+        const defaultCategories = [
+            "General Expense", 
+            "Travel & Transport", 
+            "Office Supplies", 
+            "Meals & Entertainment", 
+            "Utilities", 
+            "Professional Services", 
+            "Medical", 
+            "Maintenance & Repairs", 
+            "Training & Development"
+        ];
+
         try {
-            // Simulated API endpoint /api/categories
-            // Mock data simulating API response
-            const mockApiCategories = [
-                "General Expense", 
-                "Travel & Transport", 
-                "Office Supplies", 
-                "Meals & Entertainment", 
-                "Utilities", 
-                "Professional Services", 
-                "Medical", 
-                "Maintenance & Repairs",
-                "Training & Development"
-            ];
+            // Attempt to fetch from real API
+            const response = await fetch('/api/categories');
             
-            setCategories(mockApiCategories);
-            if (mockApiCategories.length > 0) {
-                setCategory(mockApiCategories[0]);
+            let loadedCategories: string[] = [];
+
+            if (response.ok) {
+                const result = await response.json();
+                // Handle various response shapes { data: [] } or []
+                loadedCategories = Array.isArray(result) ? result : (result.data || []);
             }
+
+            // Fallback if API returns empty
+            if (loadedCategories.length === 0) {
+                 loadedCategories = defaultCategories;
+            }
+
+            setCategories(loadedCategories);
+            setCategory(prev => prev || loadedCategories[0]);
+
         } catch (error) {
-            console.error("Failed to load categories", error);
-            setCategories(["General Expense"]);
+            console.warn("Failed to load categories from API, using defaults", error);
+            setCategories(defaultCategories);
+            setCategory(prev => prev || defaultCategories[0]);
         }
     };
     fetchCategories();
@@ -154,7 +169,7 @@ export const VoucherGenerator: React.FC = () => {
     
     setLoadingAI(true);
     
-    const prompt = `Summarize these expense items for a formal payment voucher description. Keep it under 15 words. Items: ${validItems.map(i => i.description).join(', ')}`;
+    const prompt = `Summarize these expense items for a formal payment voucher description. Keep it specific and professional for tax audit purposes (LHDN Malaysia compliant). Items: ${validItems.map(i => i.description).join(', ')}`;
     const summary = await generateFastSummary(prompt);
     
     setDescription(summary);
@@ -343,17 +358,38 @@ export const VoucherGenerator: React.FC = () => {
     applyIfEmpty(companyRegNo, extractedData.companyRegNo, 'companyRegNo', setCompanyRegNo, PLACEHOLDERS.companyRegNo);
     applyIfEmpty(companyAddress, extractedData.companyAddress, 'companyAddress', setCompanyAddress, PLACEHOLDERS.companyAddress);
 
-    // Overwrite total amount and items to match receipt only if items list is effectively empty
-    const isItemsEmpty = items.length === 0 || (items.length === 1 && isEmpty(items[0].description) && Number(items[0].amount) === 0);
+    // Intelligent Item & Amount Handling
+    if (extractedData.totalAmount) {
+        // Case 1: No items exist - create new item
+        if (items.length === 0) {
+            const newItemId = Date.now().toString();
+            setItems([{
+                id: newItemId,
+                description: 'Receipt Import',
+                amount: extractedData.totalAmount
+            }]);
+            newAutoFilled.add(`item-${newItemId}-amount`);
+        } 
+        // Case 2: Single item exists - update if empty/default
+        else if (items.length === 1) {
+            const item = items[0];
+            const isAmountZero = Number(item.amount) === 0;
+            const isDescEmpty = isEmpty(item.description);
 
-    if (extractedData.totalAmount && isItemsEmpty) {
-        const newItemId = Date.now().toString();
-        setItems([{
-            id: newItemId,
-            description: 'Receipt Import',
-            amount: extractedData.totalAmount
-        }]);
-        newAutoFilled.add(`item-${newItemId}-amount`);
+            // If amount is 0 (default/empty), we can fill it.
+            // If user has entered an amount (!= 0), we do NOT overwrite it.
+            if (isAmountZero) {
+                 const updatedItem = { ...item, amount: extractedData.totalAmount };
+                 newAutoFilled.add(`item-${item.id}-amount`);
+                 
+                 // Only add default description if completely empty
+                 if (isDescEmpty) {
+                     updatedItem.description = 'Receipt Import';
+                 }
+                 setItems([updatedItem]);
+            }
+        }
+        // Case 3: Multiple items - Do nothing to avoid disrupting manual split
     }
 
     setAutoFilledFields(newAutoFilled);
@@ -364,13 +400,17 @@ export const VoucherGenerator: React.FC = () => {
   const handleSaveClick = () => {
     const errors: string[] = [];
 
-    // Essential Company Info
+    // LHDN Compliance: Issuer Details
     if (!companyName.trim()) errors.push("Company Name is required.");
+    if (!companyRegNo.trim()) errors.push("Company Registration No is required for LHDN audit trails.");
 
-    // Essential Voucher Info
+    // LHDN Compliance: Payee Details
     if (!payee.trim()) errors.push("Payee Name is required.");
+    if (!payeeIc.trim()) errors.push("Payee IC / Business Registration No is required.");
+    
+    // Basic Fields
     if (!voucherDate) errors.push("Voucher Date is required.");
-    if (!preparedBy.trim()) errors.push("Prepared By is required.");
+    if (!preparedBy.trim()) errors.push("Prepared By is required (Separation of Duties).");
 
     // Line Items Validation
     if (items.length === 0) {
@@ -379,12 +419,26 @@ export const VoucherGenerator: React.FC = () => {
         const currentTotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
         if (currentTotal <= 0) errors.push("Total Amount must be greater than zero.");
         
-        const hasEmptyDescription = items.some(item => !item.description.trim());
-        if (hasEmptyDescription) errors.push("All line items must have a description.");
+        // LHDN Compliance: Description Quality
+        const vagueWords = ['misc', 'miscellaneous', 'other', 'others', 'stuff', 'expenses', 'general'];
+        items.forEach((item, idx) => {
+            if (!item.description.trim()) {
+                errors.push(`Item #${idx + 1}: Description is required.`);
+            } else if (item.description.trim().length < 5) {
+                errors.push(`Item #${idx + 1}: Description is too short. Please provide specific details.`);
+            } else if (vagueWords.includes(item.description.toLowerCase().trim())) {
+                errors.push(`Item #${idx + 1}: "${item.description}" is too vague. LHDN requires specific details.`);
+            }
+        });
+
+        // LHDN Compliance: Petty Cash vs Tax Invoice Limit
+        if (currentTotal > 500 && !evidenceRef.trim() && !evidenceType.trim()) {
+             errors.push(`Total exceeds RM 500.00. LHDN requires a supporting Tax Invoice or Receipt reference.`);
+        }
     }
 
     if (errors.length > 0) {
-        alert("Validation Error:\n\n- " + errors.join("\n- "));
+        alert("Compliance Validation Failed (LHDN):\n\n- " + errors.join("\n- "));
         return;
     }
 
@@ -439,10 +493,8 @@ export const VoucherGenerator: React.FC = () => {
 
         if (response.ok) {
             alert(`Voucher ${status.toLowerCase()} saved successfully!`);
-            // Optional: Redirect or clear form
         } else {
             console.warn("Backend API not reachable. Mocking success.");
-            // Slight delay to simulate network
             await new Promise(resolve => setTimeout(resolve, 1000));
             alert(`Voucher saved as ${status}. Data logged to console.`);
             console.log("Submitted Payload:", payload);
@@ -457,6 +509,8 @@ export const VoucherGenerator: React.FC = () => {
 
   return (
     <div className="space-y-6 md:space-y-8 relative max-w-7xl mx-auto pb-12 p-2 md:p-0">
+      
+      {/* Header Section */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 lg:gap-8">
         <div className="flex-1">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-700 tracking-tight">New Cash Voucher</h2>
@@ -464,23 +518,23 @@ export const VoucherGenerator: React.FC = () => {
         </div>
         
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full lg:w-auto">
-             {/* Language Selector */}
-             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200/50 shadow-sm w-full sm:w-auto">
+             {/* Language Selector for OCR */}
+             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200/50 shadow-sm w-full sm:w-auto min-w-[140px] h-[42px]">
                 <Languages size={16} className="text-gray-400 shrink-0" />
-                <div className="flex-1 sm:w-32">
-                    <NeuroSelect 
+                <div className="flex-1">
+                    <select 
                         value={ocrLanguage} 
                         onChange={(e) => setOcrLanguage(e.target.value)}
-                        className="!py-0 !px-2 !h-6 !text-xs !bg-transparent !shadow-none !border-none focus:!ring-0 w-full"
+                        className="w-full bg-transparent text-xs text-gray-600 font-medium outline-none border-none focus:ring-0 cursor-pointer appearance-none truncate"
                     >
                         {SUPPORTED_LANGUAGES.map(lang => (
                             <option key={lang.code} value={lang.code}>{lang.label}</option>
                         ))}
-                    </NeuroSelect>
+                    </select>
                 </div>
             </div>
 
-            <div className="flex gap-3 w-full sm:w-auto">
+            <div className="flex gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
                 <input 
                     type="file" 
                     ref={fileInputRef} 
@@ -488,11 +542,11 @@ export const VoucherGenerator: React.FC = () => {
                     accept="image/png, image/jpeg, image/webp" 
                     onChange={handleReceiptScan} 
                 />
-                <NeuroButton onClick={() => fileInputRef.current?.click()} disabled={scanning} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm whitespace-nowrap">
+                <NeuroButton onClick={() => fileInputRef.current?.click()} disabled={scanning} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[140px]">
                     <Upload size={16} className={scanning ? "animate-bounce text-blue-500" : "text-purple-600"} />
                     {scanning ? 'Scanning...' : 'Upload Receipt'}
                 </NeuroButton>
-                <NeuroButton onClick={handleReadAloud} disabled={playingAudio} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm whitespace-nowrap">
+                <NeuroButton onClick={handleReadAloud} disabled={playingAudio} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[130px]">
                     <Play size={16} className={playingAudio ? "text-green-500" : "text-blue-500"} />
                     {playingAudio ? 'Reading...' : 'Read Aloud'}
                 </NeuroButton>
@@ -571,7 +625,7 @@ export const VoucherGenerator: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Registration No.</label>
+                        <label className="block text-sm text-gray-500 mb-2">Registration No. (Required)</label>
                         <div className="relative">
                             <NeuroInput 
                                 value={companyRegNo} 
@@ -663,7 +717,7 @@ export const VoucherGenerator: React.FC = () => {
 
                     {/* ID & Authorization */}
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">IC / Company No</label>
+                        <label className="block text-sm text-gray-500 mb-2">Payee IC / Company No (Required)</label>
                         <div className="relative">
                             <NeuroInput 
                                 value={payeeIc}
@@ -752,7 +806,7 @@ export const VoucherGenerator: React.FC = () => {
                             </div>
                             
                             {/* Description - Takes full width on mobile, flex-1 on desktop */}
-                            <div className="w-full md:flex-1">
+                            <div className="w-full md:flex-1 min-w-0">
                                 <label className="md:hidden text-xs text-gray-500 mb-1 block">Description</label>
                                 <NeuroInput 
                                     placeholder="Item Description" 
