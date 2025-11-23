@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages } from 'lucide-react';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download } from 'lucide-react';
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
+import { jsPDF } from "jspdf";
 
 // Placeholder Constants to ensure consistency between UI and Logic
 const PLACEHOLDERS = {
@@ -445,6 +446,135 @@ export const VoucherGenerator: React.FC = () => {
     setShowConfirmDialog(true);
   };
 
+  const handleDownloadPDF = () => {
+    try {
+        const doc = new jsPDF();
+        
+        // --- Header ---
+        // Logo
+        if (companyLogo) {
+            try {
+                const imgProps = doc.getImageProperties(companyLogo);
+                const ratio = imgProps.width / imgProps.height;
+                const h = 25;
+                const w = h * ratio;
+                doc.addImage(companyLogo, imgProps.fileType, 15, 15, w, h);
+            } catch (e) {
+                console.warn("Could not add logo to PDF", e);
+            }
+        }
+
+        // Company Info
+        const textX = companyLogo ? 50 : 15;
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text(companyName || "Company Name", textX, 20);
+        
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100);
+        doc.text(companyRegNo || "", textX, 26);
+        
+        // Address wrap
+        const splitAddress = doc.splitTextToSize(companyAddress || "", 80);
+        doc.text(splitAddress, textX, 31);
+
+        // Voucher Title
+        doc.setTextColor(0);
+        doc.setFontSize(22);
+        doc.setFont("helvetica", "bold");
+        doc.text("PAYMENT VOUCHER", 195, 25, { align: "right" });
+        
+        // Voucher Meta
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Voucher No: ${voucherNo || 'DRAFT'}`, 195, 35, { align: "right" });
+        doc.text(`Date: ${voucherDate || new Date().toLocaleDateString()}`, 195, 40, { align: "right" });
+
+        // --- Payee Section ---
+        doc.setDrawColor(200);
+        doc.line(15, 55, 195, 55);
+        
+        doc.setFontSize(10);
+        doc.text("PAY TO:", 15, 65);
+        
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text(payee || "Payee Name", 35, 65);
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(`IC / Reg No: ${payeeIc || "-"}`, 35, 71);
+
+        // --- Items Table ---
+        let y = 85;
+        
+        // Header
+        doc.setFillColor(240, 244, 248);
+        doc.rect(15, y, 180, 10, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text("Description", 20, y + 7);
+        doc.text("Amount (RM)", 190, y + 7, { align: "right" });
+        
+        y += 18;
+        doc.setFont("helvetica", "normal");
+        
+        items.forEach((item, idx) => {
+             doc.text(`${idx+1}. ${item.description}`, 20, y);
+             doc.text(Number(item.amount).toFixed(2), 190, y, { align: "right" });
+             y += 8;
+        });
+
+        // --- Totals ---
+        y += 5;
+        doc.setDrawColor(200);
+        doc.line(15, y, 195, y);
+        y += 10;
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.text("TOTAL AMOUNT", 130, y);
+        doc.text(total.toFixed(2), 190, y, { align: "right" });
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(100);
+
+        // --- Signatures ---
+        y = Math.max(y + 30, 200);
+        
+        doc.setDrawColor(0);
+        doc.setTextColor(0);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        
+        // Prepared By
+        doc.line(15, y, 80, y);
+        doc.text("Prepared By:", 15, y + 5);
+        doc.setFont("helvetica", "bold");
+        doc.text(preparedBy || "________________", 15, y - 5);
+        
+        // Approved By
+        doc.setFont("helvetica", "normal");
+        doc.line(130, y, 195, y);
+        doc.text("Approved By:", 130, y + 5);
+        doc.setFont("helvetica", "bold");
+        doc.text(approvedBy || "________________", 130, y - 5);
+        
+        // Footer
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(150);
+        doc.text("Generated by NeuroVoucher AI", 105, 285, { align: "center" });
+
+        doc.save(`${voucherNo || 'payment_voucher'}.pdf`);
+    } catch (error) {
+        console.error("PDF Generation Error:", error);
+        alert("Failed to generate PDF. Check logo format.");
+    }
+  };
+
   const executeSaveVoucher = async (status: 'DRAFT' | 'COMPLETED' = 'COMPLETED') => {
     setShowConfirmDialog(false);
     setSaving(true);
@@ -631,8 +761,9 @@ export const VoucherGenerator: React.FC = () => {
                                 value={companyRegNo} 
                                 onChange={(e) => { setCompanyRegNo(e.target.value); handleFieldChange('companyRegNo'); }}
                                 placeholder={PLACEHOLDERS.companyRegNo}
-                                className={`${commonInputStyle} pr-10 ${getAutoFillClass('companyRegNo')}`}
+                                className={`${commonInputStyle} pl-10 pr-10 ${getAutoFillClass('companyRegNo')}`}
                             />
+                            <FileText size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             {autoFilledFields.has('companyRegNo') && <AutoFilledIndicator />}
                         </div>
                     </div>
@@ -667,7 +798,7 @@ export const VoucherGenerator: React.FC = () => {
                                 placeholder={PLACEHOLDERS.voucherNo}
                                 className={`${commonInputStyle} pl-10`}
                             />
-                            <FileText size={18} className="absolute left-3 top-3.5 text-gray-400" />
+                            <FileText size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         </div>
                     </div>
                     <div>
@@ -679,7 +810,7 @@ export const VoucherGenerator: React.FC = () => {
                                 onChange={(e) => { setVoucherDate(e.target.value); handleFieldChange('voucherDate'); }}
                                 className={`${commonInputStyle} pl-10 pr-10 ${getAutoFillClass('voucherDate')}`}
                             />
-                            <Calendar size={18} className="absolute left-3 top-3.5 text-gray-400" />
+                            <Calendar size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             {autoFilledFields.has('voucherDate') && <AutoFilledIndicator />}
                         </div>
                     </div>
@@ -873,6 +1004,14 @@ export const VoucherGenerator: React.FC = () => {
                     >
                         <Sparkles size={16} className={loadingAI ? "animate-spin" : ""} />
                         {loadingAI ? 'Generating...' : 'AI Check Description'}
+                    </NeuroButton>
+
+                    <NeuroButton 
+                        onClick={handleDownloadPDF}
+                        className="w-full text-green-600 text-sm py-3 flex items-center justify-center gap-2"
+                    >
+                        <Download size={16} />
+                        Download PDF
                     </NeuroButton>
 
                     <div className="flex flex-col sm:flex-row gap-3">
