@@ -168,7 +168,7 @@ export const VoucherGenerator: React.FC = () => {
   };
 
   const getAutoFillClass = (field: string) => 
-    autoFilledFields.has(field) ? "ring-2 ring-purple-400/40 bg-purple-50/20" : "";
+    autoFilledFields.has(field) ? "!bg-purple-50 ring-2 ring-purple-400/30" : "!bg-white";
 
   const addItem = () => {
     setItems([...items, { id: Date.now().toString(), description: '', amount: 0 }]);
@@ -921,8 +921,8 @@ export const VoucherGenerator: React.FC = () => {
         </div>
         
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full lg:w-auto">
-             {/* Language Selector for OCR - Updated to Neumorphism */}
-             <div className="flex items-center gap-2 bg-[#e0e5ec] px-3 py-2 rounded-xl shadow-[inset_2px_2px_5px_rgba(163,177,198,0.6),inset_-2px_-2px_5px_rgba(255,255,255,0.5)] w-full sm:w-auto min-w-[140px] h-[42px]">
+             {/* Language Selector for OCR - Updated to White Neumorphic */}
+             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-inner w-full sm:w-auto min-w-[140px] h-[42px]">
                 <Languages size={16} className="text-gray-400 shrink-0" />
                 <div className="flex-1">
                     <select 
@@ -1060,7 +1060,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={companyName} 
                                 onChange={(e) => { setCompanyName(e.target.value); handleFieldChange('companyName'); }}
                                 placeholder={PLACEHOLDERS.companyName}
-                                className={`pr-10 ${getAutoFillClass('companyName')}`}
+                                className={`pr-10 truncate ${getAutoFillClass('companyName')}`}
                             />
                             {autoFilledFields.has('companyName') && <AutoFilledIndicator />}
                         </div>
@@ -1072,7 +1072,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={companyRegNo} 
                                 onChange={(e) => { setCompanyRegNo(e.target.value); handleFieldChange('companyRegNo'); }}
                                 placeholder={PLACEHOLDERS.companyRegNo}
-                                className={`pl-10 pr-10 ${getAutoFillClass('companyRegNo')}`}
+                                className={`pl-10 pr-10 truncate ${getAutoFillClass('companyRegNo')}`}
                             />
                             <FileText size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             {autoFilledFields.has('companyRegNo') && <AutoFilledIndicator />}
@@ -1092,8 +1092,8 @@ export const VoucherGenerator: React.FC = () => {
                         </div>
                     </div>
                     
-                    {/* Contact Details (Adjusted Layout: Fax below Tel) */}
-                    <div className="space-y-3">
+                    {/* Contact Details (Consistent Spacing & Alignment) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
                             <label className="block text-xs text-gray-500 mb-1">Tel</label>
                             <div className="relative">
@@ -1101,7 +1101,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={companyTel}
                                     onChange={(e) => { setCompanyTel(e.target.value); handleFieldChange('companyTel'); }}
                                     placeholder={PLACEHOLDERS.companyTel}
-                                    className={`text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyTel')}`}
+                                    className={`text-sm pl-8 pr-2 py-2 truncate ${getAutoFillClass('companyTel')}`}
                                 />
                                 <Phone size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyTel') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
@@ -1114,20 +1114,20 @@ export const VoucherGenerator: React.FC = () => {
                                     value={companyFax}
                                     onChange={(e) => { setCompanyFax(e.target.value); handleFieldChange('companyFax'); }}
                                     placeholder={PLACEHOLDERS.companyFax}
-                                    className={`text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyFax')}`}
+                                    className={`text-sm pl-8 pr-2 py-2 truncate ${getAutoFillClass('companyFax')}`}
                                 />
                                 <Printer size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyFax') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
                             </div>
                          </div>
-                         <div>
+                         <div className="md:col-span-2">
                             <label className="block text-xs text-gray-500 mb-1">Email</label>
                             <div className="relative">
                                 <NeuroInput 
                                     value={companyEmail}
                                     onChange={(e) => { setCompanyEmail(e.target.value); handleFieldChange('companyEmail'); }}
                                     placeholder={PLACEHOLDERS.companyEmail}
-                                    className={`text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyEmail')}`}
+                                    className={`text-sm pl-8 pr-2 py-2 truncate ${getAutoFillClass('companyEmail')}`}
                                 />
                                 <Mail size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyEmail') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
@@ -1150,7 +1150,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={voucherNo} 
                                 onChange={(e) => setVoucherNo(e.target.value)} 
                                 placeholder={PLACEHOLDERS.voucherNo}
-                                className={`pl-10`}
+                                className={`pl-10 truncate !bg-white`}
                             />
                             <FileText size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         </div>
@@ -1162,7 +1162,7 @@ export const VoucherGenerator: React.FC = () => {
                                 type="date" 
                                 value={voucherDate} 
                                 onChange={(e) => { setVoucherDate(e.target.value); handleFieldChange('voucherDate'); }}
-                                className={`pl-10 pr-10 ${getAutoFillClass('voucherDate')}`}
+                                className={`pl-10 pr-10 truncate ${getAutoFillClass('voucherDate')}`}
                             />
                             <Calendar size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             {autoFilledFields.has('voucherDate') && <AutoFilledIndicator />}
@@ -1178,7 +1178,7 @@ export const VoucherGenerator: React.FC = () => {
                             <NeuroSelect 
                                 value={category} 
                                 onChange={(e) => setCategory(e.target.value)}
-                                className={`pr-10 ${getAutoFillClass('category')}`}
+                                className={`pr-10 truncate ${getAutoFillClass('category')}`}
                             >
                                 {categories.map((cat) => (
                                     <option key={cat} value={cat}>{cat}</option>
@@ -1197,7 +1197,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={payee} 
                                 onChange={(e) => { setPayee(e.target.value); handleFieldChange('payee'); }}
                                 placeholder={PLACEHOLDERS.payee}
-                                className={`pr-10 ${getAutoFillClass('payee')}`}
+                                className={`pr-10 truncate ${getAutoFillClass('payee')}`}
                             />
                             {autoFilledFields.has('payee') && <AutoFilledIndicator />}
                         </div>
@@ -1211,7 +1211,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={payeeIc}
                                 onChange={(e) => { setPayeeIc(e.target.value); handleFieldChange('payeeIc'); }}
                                 placeholder={PLACEHOLDERS.payeeIc}
-                                className={`pr-10 ${getAutoFillClass('payeeIc')}`}
+                                className={`pr-10 truncate ${getAutoFillClass('payeeIc')}`}
                             />
                             {autoFilledFields.has('payeeIc') && <AutoFilledIndicator />}
                         </div>
@@ -1222,6 +1222,7 @@ export const VoucherGenerator: React.FC = () => {
                             value={preparedBy} 
                             onChange={(e) => setPreparedBy(e.target.value)} 
                             placeholder="Name" 
+                            className="!bg-white"
                         />
                     </div>
                     <div>
@@ -1230,6 +1231,7 @@ export const VoucherGenerator: React.FC = () => {
                             value={approvedBy} 
                             onChange={(e) => setApprovedBy(e.target.value)} 
                             placeholder="Name" 
+                            className="!bg-white"
                         />
                     </div>
 
@@ -1273,7 +1275,7 @@ export const VoucherGenerator: React.FC = () => {
             {/* LHDN Tax Compliance Section */}
             <NeuroCard title="LHDN Tax Compliance" className="mt-6">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center justify-between p-3 bg-[#e0e5ec] shadow-[inset_2px_2px_5px_rgba(163,177,198,0.6),inset_-2px_-2px_5px_rgba(255,255,255,0.5)] rounded-xl">
+                    <div className="flex items-center justify-between p-3 bg-white shadow-inner rounded-xl border border-gray-100">
                         <label className="text-sm text-gray-700 font-medium flex items-center gap-2">
                              <FileCheck size={18} className="text-green-600" />
                              Tax Deductible
@@ -1305,7 +1307,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={taxCategory}
                                 onChange={(e) => { setTaxCategory(e.target.value); handleFieldChange('taxCategory'); }}
                                 placeholder={PLACEHOLDERS.taxCategory}
-                                className={`${getAutoFillClass('taxCategory')}`}
+                                className={`truncate ${getAutoFillClass('taxCategory')}`}
                             />
                              {autoFilledFields.has('taxCategory') && <AutoFilledIndicator />}
                         </div>
@@ -1318,7 +1320,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={taxCode}
                                 onChange={(e) => { setTaxCode(e.target.value); handleFieldChange('taxCode'); }}
                                 placeholder={PLACEHOLDERS.taxCode}
-                                className={`${getAutoFillClass('taxCode')}`}
+                                className={`truncate ${getAutoFillClass('taxCode')}`}
                             />
                             {autoFilledFields.has('taxCode') && <AutoFilledIndicator />}
                         </div>
@@ -1331,7 +1333,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={taxReason}
                                 onChange={(e) => { setTaxReason(e.target.value); handleFieldChange('taxReason'); }}
                                 placeholder={PLACEHOLDERS.taxReason}
-                                className={`${getAutoFillClass('taxReason')}`}
+                                className={`truncate ${getAutoFillClass('taxReason')}`}
                             />
                              {autoFilledFields.has('taxReason') && <AutoFilledIndicator />}
                         </div>
@@ -1370,6 +1372,7 @@ export const VoucherGenerator: React.FC = () => {
                                     placeholder="Item Description" 
                                     value={item.description}
                                     onChange={(e) => updateItem(item.id, 'description', e.target.value)}
+                                    className="truncate !bg-white"
                                 />
                             </div>
                             
@@ -1381,7 +1384,7 @@ export const VoucherGenerator: React.FC = () => {
                                     placeholder="0.00" 
                                     value={item.amount}
                                     onChange={(e) => updateItem(item.id, 'amount', e.target.value)}
-                                    className={`text-right pr-8 ${getAutoFillClass(`item-${item.id}-amount`)}`}
+                                    className={`text-right pr-8 truncate ${getAutoFillClass(`item-${item.id}-amount`)}`}
                                 />
                                 {autoFilledFields.has(`item-${item.id}-amount`) && (
                                     <div className="absolute right-3 top-8 md:top-1/2 md:-translate-y-1/2">
@@ -1492,7 +1495,7 @@ export const VoucherGenerator: React.FC = () => {
                             type="date" 
                             value={originalDate} 
                             onChange={(e) => { setOriginalDate(e.target.value); handleFieldChange('originalDate'); }} 
-                            className={`pl-10 pr-10 ${getAutoFillClass('originalDate')}`}
+                            className={`pl-10 pr-10 truncate ${getAutoFillClass('originalDate')}`}
                         />
                         {autoFilledFields.has('originalDate') && <AutoFilledIndicator />}
                     </div>
@@ -1503,6 +1506,7 @@ export const VoucherGenerator: React.FC = () => {
                         placeholder={PLACEHOLDERS.evidenceType}
                         value={evidenceType}
                         onChange={(e) => setEvidenceType(e.target.value)}
+                        className="truncate !bg-white"
                     />
                </div>
                <div>
@@ -1511,6 +1515,7 @@ export const VoucherGenerator: React.FC = () => {
                         placeholder={PLACEHOLDERS.evidenceRef}
                         value={evidenceRef}
                         onChange={(e) => setEvidenceRef(e.target.value)}
+                        className="truncate !bg-white"
                     />
                </div>
                <div className="md:col-span-2 lg:col-span-3">
@@ -1520,7 +1525,7 @@ export const VoucherGenerator: React.FC = () => {
                         value={lostReason}
                         onChange={(e) => setLostReason(e.target.value)}
                         rows={2}
-                        className={`resize-none`}
+                        className={`resize-none !bg-white`}
                     />
                </div>
           </div>
