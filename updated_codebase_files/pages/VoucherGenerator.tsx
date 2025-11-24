@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight } from 'lucide-react';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins } from 'lucide-react';
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 import { jsPDF } from "jspdf";
@@ -615,6 +615,14 @@ export const VoucherGenerator: React.FC = () => {
         setShowOCRConfirm(false);
         setExtractedData(null);
     }
+  };
+
+  const handleExtractedDataChange = (field: string, value: any) => {
+    if (!extractedData) return;
+    setExtractedData({
+        ...extractedData,
+        [field]: value
+    });
   };
 
   const handleSaveClick = () => {
@@ -1688,117 +1696,156 @@ export const VoucherGenerator: React.FC = () => {
       {showOCRConfirm && extractedData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={() => setShowOCRConfirm(false)}></div>
-            <NeuroCard className="w-full max-w-md relative z-10 shadow-2xl border-2 border-purple-100 max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shadow-inner">
-                        <ScanLine size={20} />
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-bold text-gray-700">Receipt Extracted</h3>
-                        <div className="flex items-center gap-2">
-                             <p className="text-xs text-gray-500">Gemini found the following details</p>
-                             <button onClick={() => setShowOCRHelp(true)} className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1">
-                                <Info size={12} /> Learn More
-                             </button>
+            <NeuroCard className="w-full max-w-lg relative z-10 shadow-2xl border-2 border-purple-100 max-h-[90vh] overflow-y-auto bg-gray-50/50">
+                <div className="flex items-center justify-between mb-4 sticky top-0 bg-gray-50/95 backdrop-blur z-20 pb-2 border-b border-gray-200/50 pt-1">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shadow-inner">
+                            <ScanLine size={20} />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-700">Verify Scan</h3>
+                            <div className="flex items-center gap-2">
+                                <p className="text-xs text-gray-500 flex items-center gap-1">
+                                    <Pencil size={10} /> Edit fields if needed
+                                </p>
+                            </div>
                         </div>
                     </div>
+                     <button onClick={() => setShowOCRHelp(true)} className="text-gray-400 hover:text-blue-500">
+                        <Info size={20} />
+                     </button>
                 </div>
                 
-                <div className="space-y-4 mb-8">
-                    <div className="bg-[#e0e5ec] p-4 rounded-xl shadow-inner text-sm space-y-3">
-                        <div className="flex justify-between border-b border-gray-300/50 pb-2">
-                            <span className="text-gray-500">Payee Name</span> 
-                            <span className="font-semibold text-gray-700 text-right">{extractedData.payeeName || "Not Found"}</span>
-                        </div>
-                        <div className="flex justify-between border-b border-gray-300/50 pb-2">
-                            <span className="text-gray-500">Voucher & Original Date</span> 
-                            <span className="font-semibold text-gray-700">{extractedData.date || "Not Found"}</span>
-                        </div>
-                        <div className="flex justify-between border-b border-gray-300/50 pb-2">
-                            <span className="text-gray-500">Total Amount</span> 
-                            <span className="font-bold text-purple-600">{extractedData.totalAmount ? `RM ${extractedData.totalAmount.toFixed(2)}` : "Not Found"}</span>
-                        </div>
-                        
-                        {/* Company Details */}
-                        {(extractedData.companyName || extractedData.companyRegNo) && (
-                            <div className="flex flex-col border-b border-gray-300/50 pb-2">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500">Bill To</span> 
-                                    <span className="font-semibold text-gray-700 text-right truncate max-w-[200px]">{extractedData.companyName || '-'}</span>
+                <div className="space-y-6 mb-8 px-1">
+                    
+                    {/* Primary Transaction Info */}
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                             <div className="col-span-2">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Payee Name</label>
+                                <NeuroInput 
+                                    value={extractedData.payeeName || ''} 
+                                    onChange={(e) => handleExtractedDataChange('payeeName', e.target.value)}
+                                    placeholder="Merchant Name"
+                                    className="!py-2 text-sm font-semibold"
+                                />
+                             </div>
+                             <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Date</label>
+                                <NeuroInput 
+                                    type="date"
+                                    value={extractedData.date || ''} 
+                                    onChange={(e) => handleExtractedDataChange('date', e.target.value)}
+                                    className="!py-2 text-sm"
+                                />
+                             </div>
+                             <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Total Amount</label>
+                                <div className="relative">
+                                    <NeuroInput 
+                                        type="number"
+                                        value={extractedData.totalAmount || ''} 
+                                        onChange={(e) => handleExtractedDataChange('totalAmount', parseFloat(e.target.value))}
+                                        className="!py-2 text-sm pr-2 text-right font-bold text-purple-600"
+                                    />
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">RM</span>
                                 </div>
-                                {extractedData.companyRegNo && (
-                                    <span className="text-xs text-gray-400 text-right mt-1 block">Reg: {extractedData.companyRegNo}</span>
-                                )}
-                            </div>
-                        )}
-                        
-                        {extractedData.companyAddress && (
-                            <div className="flex flex-col border-b border-gray-300/50 pb-2">
-                                <span className="text-gray-500 mb-1">Company Address</span> 
-                                <span className="text-xs text-gray-600 text-right leading-relaxed bg-white/50 p-2 rounded-lg border border-gray-200/50">{extractedData.companyAddress}</span>
-                            </div>
-                        )}
-
-                        {(extractedData.companyTel || extractedData.companyEmail) && (
-                            <div className="flex flex-col pt-1">
-                                <span className="text-gray-500 mb-1">Contact</span>
-                                <span className="text-xs text-gray-600 text-right">
-                                    {extractedData.companyTel} {extractedData.companyEmail ? `| ${extractedData.companyEmail}` : ''}
-                                </span>
-                            </div>
-                        )}
+                             </div>
+                        </div>
                     </div>
 
-                    {/* Tax Deductibility Analysis */}
-                    {(extractedData.taxDeductible !== undefined || extractedData.taxCategory) && (
-                        <div className="bg-white/50 p-3 rounded-xl border border-blue-100 shadow-sm mt-3">
-                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                <ShieldCheck size={12} className="text-blue-500" /> LHDN Tax Analysis
+                    {/* Company Info (Bill To) */}
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3 relative group">
+                        <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-100 transition-opacity">
+                            <Building2 size={16} className="text-gray-400" />
+                        </div>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 border-b border-gray-100 pb-1">Bill To Details</h4>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="col-span-2">
+                                <label className="text-[10px] text-gray-400 uppercase font-bold block mb-1">Company Name</label>
+                                <NeuroInput 
+                                    value={extractedData.companyName || ''}
+                                    onChange={(e) => handleExtractedDataChange('companyName', e.target.value)}
+                                    placeholder="N/A"
+                                    className="!py-1.5 text-xs"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-400 uppercase font-bold block mb-1">Reg No</label>
+                                <NeuroInput 
+                                    value={extractedData.companyRegNo || ''}
+                                    onChange={(e) => handleExtractedDataChange('companyRegNo', e.target.value)}
+                                    placeholder="N/A"
+                                    className="!py-1.5 text-xs"
+                                />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-[10px] text-gray-400 uppercase font-bold block mb-1">Address</label>
+                                <NeuroInput 
+                                    value={extractedData.companyAddress || ''}
+                                    onChange={(e) => handleExtractedDataChange('companyAddress', e.target.value)}
+                                    placeholder="N/A"
+                                    className="!py-1.5 text-xs"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Tax Analysis */}
+                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm space-y-3">
+                         <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider flex items-center gap-1">
+                                <ShieldCheck size={12} /> Tax Analysis
                             </h4>
-                            <div className="space-y-2 text-sm">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-500">Status</span>
-                                    <span className={`font-bold px-2 py-0.5 rounded-md text-xs ${
-                                        extractedData.taxDeductible 
-                                        ? 'bg-green-100 text-green-700' 
-                                        : 'bg-orange-100 text-orange-700'
-                                    }`}>
-                                        {extractedData.taxDeductible ? "Deductible" : "Non-Deductible / Restricted"}
-                                    </span>
-                                </div>
-                                {extractedData.taxCategory && (
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-500">Category</span>
-                                        <span className="text-gray-700 font-medium">{extractedData.taxCategory}</span>
-                                    </div>
-                                )}
-                                {(extractedData.taxCode || extractedData.taxLimit) && (
-                                    <div className="flex flex-col bg-blue-50 p-2 rounded-lg text-xs text-blue-800">
-                                        {extractedData.taxCode && <div><strong>Code:</strong> {extractedData.taxCode}</div>}
-                                        {extractedData.taxLimit && <div><strong>Limit:</strong> {extractedData.taxLimit}</div>}
-                                    </div>
-                                )}
-                                {extractedData.taxReason && (
-                                    <p className="text-xs text-gray-500 italic mt-1 border-t border-blue-100 pt-1">
-                                        "{extractedData.taxReason}"
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    )}
+                            
+                             <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                <span className={extractedData.taxDeductible ? "text-green-600 font-bold" : "text-gray-500"}>Deductible</span>
+                                <input 
+                                    type="checkbox" 
+                                    checked={!!extractedData.taxDeductible} 
+                                    onChange={(e) => handleExtractedDataChange('taxDeductible', e.target.checked)}
+                                    className="accent-green-500 w-4 h-4"
+                                />
+                             </label>
+                         </div>
 
-                    <p className="text-xs text-center text-gray-400">OCR data will only fill empty fields. Your existing entries are safe.</p>
+                         <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] text-blue-400 uppercase font-bold block mb-1">Category</label>
+                                <NeuroInput 
+                                    value={extractedData.taxCategory || ''}
+                                    onChange={(e) => handleExtractedDataChange('taxCategory', e.target.value)}
+                                    className="!py-1.5 text-xs !bg-white"
+                                />
+                            </div>
+                             <div>
+                                <label className="text-[10px] text-blue-400 uppercase font-bold block mb-1">Tax Code/Limit</label>
+                                <NeuroInput 
+                                    value={extractedData.taxCode || extractedData.taxLimit || ''}
+                                    onChange={(e) => handleExtractedDataChange('taxCode', e.target.value)}
+                                    className="!py-1.5 text-xs !bg-white"
+                                />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-[10px] text-blue-400 uppercase font-bold block mb-1">Reasoning</label>
+                                <div className="text-xs text-blue-800 italic bg-white/50 p-2 rounded border border-blue-100">
+                                    {extractedData.taxReason || "No specific tax reasoning provided."}
+                                </div>
+                            </div>
+                         </div>
+                    </div>
                 </div>
                 
-                <div className="flex gap-4 justify-end pt-4 border-t border-gray-100">
+                <div className="flex gap-4 justify-end pt-4 border-t border-gray-200 bg-gray-50 p-4 -mx-0 sticky bottom-0">
                     <NeuroButton 
                         onClick={() => {
                             setShowOCRConfirm(false);
                             setExtractedData(null);
                         }} 
-                        className="text-sm px-6 bg-transparent hover:bg-gray-100 text-gray-500 shadow-none border border-gray-200"
+                        className="text-sm px-6 bg-white hover:bg-gray-100 text-gray-600 shadow-sm border border-gray-300"
                     >
-                        Cancel
+                        Discard
                     </NeuroButton>
                     <NeuroButton 
                         onClick={() => applyOCRData()} 

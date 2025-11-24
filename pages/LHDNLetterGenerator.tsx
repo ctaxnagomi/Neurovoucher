@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroTextarea, NeuroBadge } from '../components/NeuroComponents';
 import { generateFastSummary } from '../services/geminiService';
-import { Download, Copy, Sparkles, Printer, FileCheck, ShieldCheck, HelpCircle, ScrollText } from 'lucide-react';
+import { Download, Copy, Sparkles, Printer, FileCheck, ShieldCheck, HelpCircle, ScrollText, Info, ListChecks, AlertTriangle, XCircle } from 'lucide-react';
 import { jsPDF } from "jspdf";
 
 export const LHDNLetterGenerator: React.FC = () => {
@@ -223,6 +223,15 @@ ${companyName}`;
 
         doc.save('LHDN_Explanation_Letter.pdf');
     };
+
+    const CHECKLIST_ITEMS = [
+        "Original signed Explanation Letter (on Company Letterhead)",
+        "Replacement Cash Vouchers (PV) for every missing receipt",
+        "Certified True Copy of Bank Statements highlighting the transactions",
+        "Payment proofs (Cheque butts / Online transfer receipts)",
+        "General Ledger extract showing the expense entry",
+        "Director's Resolution (if amount is significant > RM 10k)"
+    ];
 
     return (
         <div className="space-y-6 md:space-y-8 max-w-7xl mx-auto pb-12">
@@ -450,6 +459,66 @@ ${companyName}`;
                     <strong>Submission Tip:</strong> Always attach the original signed cash vouchers and certified true copies of bank statements when submitting this letter to the LHDN branch handling your tax file.
                 </div>
              </div>
+
+             {/* Guidance & Checklist Section */}
+             <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <NeuroCard title="Submission Checklist" className="lg:col-span-1 h-full">
+                    <ul className="space-y-4">
+                        {CHECKLIST_ITEMS.map((item, idx) => (
+                            <li key={idx} className="flex gap-3 items-start">
+                                <div className="min-w-[24px] h-[24px] rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">
+                                    {idx + 1}
+                                </div>
+                                <span className="text-sm text-gray-600 leading-snug">{item}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </NeuroCard>
+
+                <NeuroCard title="Practical Guidance" className="lg:col-span-2 h-full">
+                     <div className="space-y-6">
+                        <div className="flex gap-4 items-start bg-blue-50 p-4 rounded-xl border border-blue-100">
+                            <Info className="text-blue-500 shrink-0 mt-1" size={20} />
+                            <div>
+                                <h4 className="font-bold text-blue-800 text-sm mb-1">When to use this letter?</h4>
+                                <p className="text-sm text-blue-700/80 leading-relaxed">
+                                    Use this standard explanation format when you have lost original tax invoices or receipts (e.g., lost in transit, faded thermal paper, destroyed by flood/fire) but can prove the expense via bank statements. This letter formally requests LHDN's discretion under <strong>Section 33 of the Income Tax Act 1967</strong>.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div>
+                                <h4 className="font-bold text-gray-700 text-sm mb-2 flex items-center gap-2">
+                                    <AlertTriangle size={16} className="text-orange-500"/> Do's
+                                </h4>
+                                <ul className="text-sm text-gray-600 space-y-2 list-disc ml-4">
+                                    <li>Print on official Company Letterhead.</li>
+                                    <li>Ensure the <strong>Signatory</strong> is a Director or authorized Finance Manager.</li>
+                                    <li>Attach the specific bank statement page with the relevant transaction highlighted.</li>
+                                </ul>
+                             </div>
+                             <div>
+                                <h4 className="font-bold text-gray-700 text-sm mb-2 flex items-center gap-2">
+                                     <XCircle size={16} className="text-red-500"/> Don'ts
+                                </h4>
+                                <ul className="text-sm text-gray-600 space-y-2 list-disc ml-4">
+                                    <li>Do not group unrelated expenses; use separate vouchers.</li>
+                                    <li>Do not use this for personal expenses disguised as business costs.</li>
+                                    <li>Do not sign without verifying the bank trail.</li>
+                                </ul>
+                             </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-gray-200">
+                            <h4 className="font-bold text-gray-700 text-sm mb-2">Sample Reference Text</h4>
+                            <div className="bg-gray-100 p-4 rounded-lg text-xs text-gray-500 font-mono leading-relaxed h-32 overflow-y-auto border border-gray-200">
+                                {`[Company Name]\n[Address]\n\n[Date]\n\nLembaga Hasil Dalam Negeri\nRE: EXPLANATION FOR MISSING RECEIPTS\n\nDear Sir/Madam,\n\nWe refer to the above matter. We regret to inform you that original receipts for the following expenses were [Reason for Loss]...\n\n(This structure is automatically generated in the preview above)`}
+                            </div>
+                        </div>
+                     </div>
+                </NeuroCard>
+            </div>
         </div>
     );
 };
