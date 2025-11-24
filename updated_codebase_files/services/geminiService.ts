@@ -136,6 +136,52 @@ export const editImage = async (base64Image: string, prompt: string): Promise<st
     }
 }
 
+// --- Letterhead Extraction (Flash) ---
+export const extractLetterhead = async (base64Image: string): Promise<{
+    companyName?: string;
+    regNo?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+} | null> => {
+  const client = getClient();
+  try {
+    const response = await client.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
+          { text: `Analyze this document header or business card. Extract the following business details into JSON:
+            1. companyName: The main business name.
+            2. regNo: Registration number (e.g. Co. No., SSM, Reg No).
+            3. address: Full business address.
+            4. phone: Contact number.
+            5. email: Email address.
+            ` 
+          }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+                companyName: { type: Type.STRING },
+                regNo: { type: Type.STRING },
+                address: { type: Type.STRING },
+                phone: { type: Type.STRING },
+                email: { type: Type.STRING },
+            }
+        }
+      }
+    });
+    return JSON.parse(response.text || '{}');
+  } catch (e) {
+      console.error("Letterhead Extraction Error:", e);
+      return null;
+  }
+}
+
 // --- OCR / Receipt Extraction (Flash) ---
 export const extractReceiptData = async (base64Image: string, language: string = 'en'): Promise<{ 
     payeeName?: string; 

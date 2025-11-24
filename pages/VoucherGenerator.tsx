@@ -48,10 +48,6 @@ const AutoFilledIndicator = ({ className }: { className?: string }) => (
     </div>
 );
 
-// Unified style for consistent "white" look across all inputs (replacing dark neumorphic shadow)
-// Added min-w-0 to prevent flex overflow
-const commonInputStyle = "w-full !bg-white !shadow-none border border-gray-200/60 focus:!border-blue-400 focus:!ring-4 focus:!ring-blue-50 transition-all duration-300 placeholder:text-gray-400 text-gray-700 min-w-0";
-
 export const VoucherGenerator: React.FC = () => {
   // Voucher / Payee Details
   const [payee, setPayee] = useState('');
@@ -188,9 +184,7 @@ export const VoucherGenerator: React.FC = () => {
     
     // Clear auto-fill status if user modifies the amount or description
     if (field === 'amount' || field === 'description') {
-        const key = field === 'amount' ? `item-${id}-amount` : 'description'; // Note: description in array is treated differently but for simplicity here
-        // If it's the description, we usually track the main description, but for line items we might need granular tracking.
-        // For now, let's clear the specific item tracking if present.
+        const key = field === 'amount' ? `item-${id}-amount` : 'description'; 
         handleFieldChange(`item-${id}-amount`);
         if (field === 'description' && items.length === 1) handleFieldChange('description');
     }
@@ -599,7 +593,8 @@ export const VoucherGenerator: React.FC = () => {
         );
         
         if (matchedCat) {
-             applyIfEligible(category, matchedCat, 'category', setCategory);
+             // Treat the first category (Default) as a placeholder effectively to allow smart switching
+             applyIfEligible(category, matchedCat, 'category', setCategory, categories[0]);
         }
 
         // Also populate specific Tax Category field
@@ -1110,7 +1105,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={companyName} 
                                 onChange={(e) => { setCompanyName(e.target.value); handleFieldChange('companyName'); }}
                                 placeholder={PLACEHOLDERS.companyName}
-                                className={`${commonInputStyle} pr-10 ${getAutoFillClass('companyName')}`}
+                                className={`pr-10 ${getAutoFillClass('companyName')}`}
                             />
                             {autoFilledFields.has('companyName') && <AutoFilledIndicator />}
                         </div>
@@ -1122,7 +1117,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={companyRegNo} 
                                 onChange={(e) => { setCompanyRegNo(e.target.value); handleFieldChange('companyRegNo'); }}
                                 placeholder={PLACEHOLDERS.companyRegNo}
-                                className={`${commonInputStyle} pl-10 pr-10 ${getAutoFillClass('companyRegNo')}`}
+                                className={`pl-10 pr-10 ${getAutoFillClass('companyRegNo')}`}
                             />
                             <FileText size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             {autoFilledFields.has('companyRegNo') && <AutoFilledIndicator />}
@@ -1136,7 +1131,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={companyAddress} 
                                 onChange={(e) => { setCompanyAddress(e.target.value); handleFieldChange('companyAddress'); }}
                                 placeholder={PLACEHOLDERS.companyAddress} 
-                                className={`${commonInputStyle} resize-none ${getAutoFillClass('companyAddress')}`}
+                                className={`resize-none ${getAutoFillClass('companyAddress')}`}
                             />
                             {autoFilledFields.has('companyAddress') && <div className="absolute right-3 top-3"><Sparkles size={16} className="text-purple-500 animate-pulse opacity-70" /></div>}
                         </div>
@@ -1151,7 +1146,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={companyTel}
                                     onChange={(e) => { setCompanyTel(e.target.value); handleFieldChange('companyTel'); }}
                                     placeholder={PLACEHOLDERS.companyTel}
-                                    className={`${commonInputStyle} text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyTel')}`}
+                                    className={`text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyTel')}`}
                                 />
                                 <Phone size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyTel') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
@@ -1164,7 +1159,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={companyFax}
                                     onChange={(e) => { setCompanyFax(e.target.value); handleFieldChange('companyFax'); }}
                                     placeholder={PLACEHOLDERS.companyFax}
-                                    className={`${commonInputStyle} text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyFax')}`}
+                                    className={`text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyFax')}`}
                                 />
                                 <Printer size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyFax') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
@@ -1177,7 +1172,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={companyEmail}
                                     onChange={(e) => { setCompanyEmail(e.target.value); handleFieldChange('companyEmail'); }}
                                     placeholder={PLACEHOLDERS.companyEmail}
-                                    className={`${commonInputStyle} text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyEmail')}`}
+                                    className={`text-sm pl-8 pr-2 py-2 ${getAutoFillClass('companyEmail')}`}
                                 />
                                 <Mail size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyEmail') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
@@ -1200,7 +1195,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={voucherNo} 
                                 onChange={(e) => setVoucherNo(e.target.value)} 
                                 placeholder={PLACEHOLDERS.voucherNo}
-                                className={`${commonInputStyle} pl-10`}
+                                className={`pl-10`}
                             />
                             <FileText size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         </div>
@@ -1212,7 +1207,7 @@ export const VoucherGenerator: React.FC = () => {
                                 type="date" 
                                 value={voucherDate} 
                                 onChange={(e) => { setVoucherDate(e.target.value); handleFieldChange('voucherDate'); }}
-                                className={`${commonInputStyle} pl-10 pr-10 ${getAutoFillClass('voucherDate')}`}
+                                className={`pl-10 pr-10 ${getAutoFillClass('voucherDate')}`}
                             />
                             <Calendar size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             {autoFilledFields.has('voucherDate') && <AutoFilledIndicator />}
@@ -1228,7 +1223,7 @@ export const VoucherGenerator: React.FC = () => {
                             <NeuroSelect 
                                 value={category} 
                                 onChange={(e) => setCategory(e.target.value)}
-                                className={`${commonInputStyle} pr-10 ${getAutoFillClass('category')}`}
+                                className={`pr-10 ${getAutoFillClass('category')}`}
                             >
                                 {categories.map((cat) => (
                                     <option key={cat} value={cat}>{cat}</option>
@@ -1247,7 +1242,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={payee} 
                                 onChange={(e) => { setPayee(e.target.value); handleFieldChange('payee'); }}
                                 placeholder={PLACEHOLDERS.payee}
-                                className={`${commonInputStyle} pr-10 ${getAutoFillClass('payee')}`}
+                                className={`pr-10 ${getAutoFillClass('payee')}`}
                             />
                             {autoFilledFields.has('payee') && <AutoFilledIndicator />}
                         </div>
@@ -1261,7 +1256,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={payeeIc}
                                 onChange={(e) => { setPayeeIc(e.target.value); handleFieldChange('payeeIc'); }}
                                 placeholder={PLACEHOLDERS.payeeIc}
-                                className={`${commonInputStyle} pr-10 ${getAutoFillClass('payeeIc')}`}
+                                className={`pr-10 ${getAutoFillClass('payeeIc')}`}
                             />
                             {autoFilledFields.has('payeeIc') && <AutoFilledIndicator />}
                         </div>
@@ -1272,7 +1267,6 @@ export const VoucherGenerator: React.FC = () => {
                             value={preparedBy} 
                             onChange={(e) => setPreparedBy(e.target.value)} 
                             placeholder="Name" 
-                            className={commonInputStyle}
                         />
                     </div>
                     <div>
@@ -1281,7 +1275,6 @@ export const VoucherGenerator: React.FC = () => {
                             value={approvedBy} 
                             onChange={(e) => setApprovedBy(e.target.value)} 
                             placeholder="Name" 
-                            className={commonInputStyle}
                         />
                     </div>
 
@@ -1314,7 +1307,7 @@ export const VoucherGenerator: React.FC = () => {
                                 onChange={(e) => setDescription(e.target.value)} 
                                 placeholder={PLACEHOLDERS.description} 
                                 rows={2}
-                                className={`${commonInputStyle} resize-none ${getAutoFillClass('description')}`}
+                                className={`resize-none ${getAutoFillClass('description')}`}
                             />
                             {autoFilledFields.has('description') && <div className="absolute right-3 top-3"><AutoFilledIndicator /></div>}
                         </div>
@@ -1357,7 +1350,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={taxCategory}
                                 onChange={(e) => { setTaxCategory(e.target.value); handleFieldChange('taxCategory'); }}
                                 placeholder={PLACEHOLDERS.taxCategory}
-                                className={`${commonInputStyle} ${getAutoFillClass('taxCategory')}`}
+                                className={`${getAutoFillClass('taxCategory')}`}
                             />
                              {autoFilledFields.has('taxCategory') && <AutoFilledIndicator />}
                         </div>
@@ -1370,7 +1363,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={taxCode}
                                 onChange={(e) => { setTaxCode(e.target.value); handleFieldChange('taxCode'); }}
                                 placeholder={PLACEHOLDERS.taxCode}
-                                className={`${commonInputStyle} ${getAutoFillClass('taxCode')}`}
+                                className={`${getAutoFillClass('taxCode')}`}
                             />
                             {autoFilledFields.has('taxCode') && <AutoFilledIndicator />}
                         </div>
@@ -1383,7 +1376,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={taxReason}
                                 onChange={(e) => { setTaxReason(e.target.value); handleFieldChange('taxReason'); }}
                                 placeholder={PLACEHOLDERS.taxReason}
-                                className={`${commonInputStyle} ${getAutoFillClass('taxReason')}`}
+                                className={`${getAutoFillClass('taxReason')}`}
                             />
                              {autoFilledFields.has('taxReason') && <AutoFilledIndicator />}
                         </div>
@@ -1422,7 +1415,6 @@ export const VoucherGenerator: React.FC = () => {
                                     placeholder="Item Description" 
                                     value={item.description}
                                     onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                                    className={commonInputStyle}
                                 />
                             </div>
                             
@@ -1434,7 +1426,7 @@ export const VoucherGenerator: React.FC = () => {
                                     placeholder="0.00" 
                                     value={item.amount}
                                     onChange={(e) => updateItem(item.id, 'amount', e.target.value)}
-                                    className={`text-right ${commonInputStyle} pr-8 ${getAutoFillClass(`item-${item.id}-amount`)}`}
+                                    className={`text-right pr-8 ${getAutoFillClass(`item-${item.id}-amount`)}`}
                                 />
                                 {autoFilledFields.has(`item-${item.id}-amount`) && (
                                     <div className="absolute right-3 top-8 md:top-1/2 md:-translate-y-1/2">
@@ -1545,7 +1537,7 @@ export const VoucherGenerator: React.FC = () => {
                             type="date" 
                             value={originalDate} 
                             onChange={(e) => { setOriginalDate(e.target.value); handleFieldChange('originalDate'); }} 
-                            className={`${commonInputStyle} pr-10 ${getAutoFillClass('originalDate')}`}
+                            className={`pl-10 pr-10 ${getAutoFillClass('originalDate')}`}
                         />
                         {autoFilledFields.has('originalDate') && <AutoFilledIndicator />}
                     </div>
@@ -1556,7 +1548,6 @@ export const VoucherGenerator: React.FC = () => {
                         placeholder={PLACEHOLDERS.evidenceType}
                         value={evidenceType}
                         onChange={(e) => setEvidenceType(e.target.value)}
-                        className={commonInputStyle}
                     />
                </div>
                <div>
@@ -1565,7 +1556,6 @@ export const VoucherGenerator: React.FC = () => {
                         placeholder={PLACEHOLDERS.evidenceRef}
                         value={evidenceRef}
                         onChange={(e) => setEvidenceRef(e.target.value)}
-                        className={commonInputStyle}
                     />
                </div>
                <div className="md:col-span-2 lg:col-span-3">
@@ -1575,7 +1565,7 @@ export const VoucherGenerator: React.FC = () => {
                         value={lostReason}
                         onChange={(e) => setLostReason(e.target.value)}
                         rows={2}
-                        className={`${commonInputStyle} resize-none`}
+                        className={`resize-none`}
                     />
                </div>
           </div>
@@ -1784,35 +1774,39 @@ export const VoucherGenerator: React.FC = () => {
       {showOCRConfirm && extractedData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={() => setShowOCRConfirm(false)}></div>
-            <NeuroCard className="w-full max-w-lg relative z-10 shadow-2xl border-2 border-purple-100 max-h-[90vh] overflow-y-auto bg-gray-50/50">
-                <div className="flex items-center justify-between mb-4 sticky top-0 bg-gray-50/95 backdrop-blur z-20 pb-2 border-b border-gray-200/50 pt-1">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shadow-inner">
-                            <ScanLine size={20} />
+            <NeuroCard className="w-full max-w-lg relative z-10 shadow-2xl border-2 border-purple-100 max-h-[90vh] overflow-y-auto bg-[#e0e5ec]">
+                <div className="flex items-center justify-between mb-6 sticky top-0 bg-[#e0e5ec]/95 backdrop-blur z-20 pb-4 border-b border-gray-200/50 pt-2">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
+                            <ScanLine size={24} />
                         </div>
                         <div>
-                            <h3 className="text-xl font-bold text-gray-700">Verify Scan</h3>
-                            <div className="flex items-center gap-2">
-                                <p className="text-xs text-gray-500 flex items-center gap-1">
-                                    <Pencil size={10} /> Edit fields if needed
-                                </p>
+                            <h3 className="text-xl font-bold text-gray-800 tracking-tight">Verify Extraction</h3>
+                            <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                                <span className="flex items-center gap-1 bg-white/50 px-2 py-0.5 rounded-md border border-gray-200/50">
+                                    <Pencil size={10} /> Editable
+                                </span>
+                                <button 
+                                    onClick={() => setShowOCRHelp(true)}
+                                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+                                >
+                                    <HelpCircle size={12} /> Learn More
+                                </button>
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                         <button onClick={() => setShowOCRHelp(true)} className="text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-md hover:bg-blue-50" title="Field Guide">
-                            <Info size={20} />
-                         </button>
-                         <button onClick={() => { setShowOCRConfirm(false); setExtractedData(null); }} className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50" title="Close">
-                            <X size={20} />
-                         </button>
-                    </div>
+                    <button 
+                        onClick={() => { setShowOCRConfirm(false); setExtractedData(null); }} 
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 hover:bg-red-100 text-gray-500 hover:text-red-500 transition-colors"
+                    >
+                        <X size={18} />
+                    </button>
                 </div>
                 
                 <div className="space-y-6 mb-8 px-1">
                     
                     {/* Primary Transaction Info */}
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-4">
+                    <div className="space-y-4 p-2">
                         <div className="grid grid-cols-2 gap-4">
                              <div className="col-span-2">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Payee Name</label>
@@ -1820,7 +1814,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.payeeName || ''} 
                                     onChange={(e) => handleExtractedDataChange('payeeName', e.target.value)}
                                     placeholder="Merchant Name"
-                                    className={`!py-2 text-sm font-semibold ${extractedData.payeeName ? 'border-blue-200 bg-blue-50/10' : ''}`}
+                                    className={`!py-2 text-sm font-semibold`}
                                 />
                              </div>
                              <div>
@@ -1829,7 +1823,7 @@ export const VoucherGenerator: React.FC = () => {
                                     type="date"
                                     value={extractedData.date || ''} 
                                     onChange={(e) => handleExtractedDataChange('date', e.target.value)}
-                                    className={`!py-2 text-sm ${extractedData.date ? 'border-blue-200 bg-blue-50/10' : ''}`}
+                                    className={`!py-2 text-sm`}
                                 />
                              </div>
                              <div>
@@ -1839,11 +1833,11 @@ export const VoucherGenerator: React.FC = () => {
                                         type="number"
                                         value={extractedData.totalAmount || ''} 
                                         onChange={(e) => handleExtractedDataChange('totalAmount', parseFloat(e.target.value))}
-                                        className={`!py-2 text-sm pr-2 text-right font-bold text-purple-600 ${extractedData.totalAmount ? 'border-purple-200 bg-purple-50/10' : 'border-red-200 bg-red-50/10'}`}
+                                        className={`!py-2 text-sm pr-2 text-right font-bold text-purple-600`}
                                     />
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">RM</span>
                                     {(!extractedData.totalAmount || extractedData.totalAmount === 0) && (
-                                        <div className="absolute right-2 top-[-20px] text-[10px] text-red-500 font-bold flex items-center bg-red-50 px-1 rounded">
+                                        <div className="absolute right-2 top-[-20px] text-[10px] text-red-500 font-bold flex items-center bg-red-50 px-1 rounded shadow-sm border border-red-100">
                                             <AlertTriangle size={10} className="mr-1"/> Check Amount
                                         </div>
                                     )}
@@ -1853,11 +1847,11 @@ export const VoucherGenerator: React.FC = () => {
                     </div>
 
                     {/* Company Info (Bill To) */}
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3 relative group">
+                    <div className="space-y-3 relative group p-2">
                         <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-100 transition-opacity">
                             <Building2 size={16} className="text-gray-400" />
                         </div>
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 border-b border-gray-100 pb-1">Bill To Details</h4>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 border-b border-gray-300/30 pb-1">Bill To Details</h4>
                         
                         <div className="grid grid-cols-2 gap-3">
                             <div className="col-span-2">
@@ -1866,7 +1860,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyName || ''}
                                     onChange={(e) => handleExtractedDataChange('companyName', e.target.value)}
                                     placeholder="N/A"
-                                    className={`!py-1.5 text-xs ${extractedData.companyName ? 'bg-green-50/10 border-green-200' : ''}`}
+                                    className={`!py-1.5 text-xs`}
                                 />
                             </div>
                             <div>
@@ -1875,7 +1869,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyRegNo || ''}
                                     onChange={(e) => handleExtractedDataChange('companyRegNo', e.target.value)}
                                     placeholder="N/A"
-                                    className={`!py-1.5 text-xs ${extractedData.companyRegNo ? 'bg-green-50/10 border-green-200' : ''}`}
+                                    className={`!py-1.5 text-xs`}
                                 />
                             </div>
                             <div className="col-span-2">
@@ -1884,14 +1878,14 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyAddress || ''}
                                     onChange={(e) => handleExtractedDataChange('companyAddress', e.target.value)}
                                     placeholder="N/A"
-                                    className={`!py-1.5 text-xs ${extractedData.companyAddress ? 'bg-green-50/10 border-green-200' : ''}`}
+                                    className={`!py-1.5 text-xs`}
                                 />
                             </div>
                         </div>
                     </div>
 
                     {/* Tax Analysis */}
-                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm space-y-3">
+                    <div className="space-y-3 p-2 border-t border-gray-300/20 pt-4">
                          <div className="flex items-center justify-between">
                             <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider flex items-center gap-1">
                                 <ShieldCheck size={12} /> Tax Analysis
@@ -1918,7 +1912,7 @@ export const VoucherGenerator: React.FC = () => {
                                 <NeuroInput 
                                     value={extractedData.taxCategory || ''}
                                     onChange={(e) => handleExtractedDataChange('taxCategory', e.target.value)}
-                                    className={`!py-1.5 text-xs !bg-white ${extractedData.taxCategory ? 'border-blue-300' : ''}`}
+                                    className={`!py-1.5 text-xs`}
                                 />
                             </div>
                              <div>
@@ -1926,7 +1920,7 @@ export const VoucherGenerator: React.FC = () => {
                                 <NeuroInput 
                                     value={extractedData.taxCode || extractedData.taxLimit || ''}
                                     onChange={(e) => handleExtractedDataChange('taxCode', e.target.value)}
-                                    className={`!py-1.5 text-xs !bg-white ${extractedData.taxCode ? 'border-blue-300' : ''}`}
+                                    className={`!py-1.5 text-xs`}
                                 />
                             </div>
                             <div className="col-span-2">
@@ -1939,13 +1933,13 @@ export const VoucherGenerator: React.FC = () => {
                     </div>
                 </div>
                 
-                <div className="flex gap-4 justify-end pt-4 border-t border-gray-200 bg-gray-50 p-4 -mx-0 sticky bottom-0">
+                <div className="flex gap-4 justify-end pt-4 border-t border-gray-200 bg-[#e0e5ec] p-4 -mx-0 sticky bottom-0">
                     <NeuroButton 
                         onClick={() => {
                             setShowOCRConfirm(false);
                             setExtractedData(null);
                         }} 
-                        className="text-sm px-6 bg-white hover:bg-gray-100 text-gray-600 shadow-sm border border-gray-300"
+                        className="text-sm px-6 bg-[#e0e5ec] hover:translate-y-[-1px] text-gray-600"
                     >
                         Cancel
                     </NeuroButton>

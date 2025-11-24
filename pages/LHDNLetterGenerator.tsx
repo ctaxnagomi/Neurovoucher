@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { NeuroCard, NeuroInput, NeuroButton, NeuroTextarea, NeuroBadge } from '../components/NeuroComponents';
-import { generateFastSummary } from '../services/geminiService';
-import { Download, Copy, Sparkles, Printer, FileCheck, ShieldCheck, HelpCircle, ScrollText, Info, ListChecks, AlertTriangle, XCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { NeuroCard, NeuroInput, NeuroButton, NeuroTextarea, NeuroBadge, NeuroSelect } from '../components/NeuroComponents';
+import { generateFastSummary, extractLetterhead } from '../services/geminiService';
+import { Download, Copy, Sparkles, Printer, FileCheck, ShieldCheck, HelpCircle, ScrollText, Info, ListChecks, AlertTriangle, XCircle, ScanLine, Loader2, FileText } from 'lucide-react';
 import { jsPDF } from "jspdf";
 
 export const CHECKLIST_ITEMS = [
@@ -40,6 +40,40 @@ export const LHDNLetterGenerator: React.FC = () => {
     const [lhdnAddress, setLhdnAddress] = useState('Lembaga Hasil Dalam Negeri (LHDN)\nLHDN Headquarters\nMentakab\n28400 Pahang');
 
     const [isPolishing, setIsPolishing] = useState(false);
+    const [scanning, setScanning] = useState(false);
+    const [paperSize, setPaperSize] = useState<'a4' | 'letter'>('a4');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleScanLetterhead = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setScanning(true);
+        try {
+            const reader = new FileReader();
+            reader.onload = async () => {
+                const base64 = (reader.result as string).split(',')[1];
+                const data = await extractLetterhead(base64);
+                
+                if (data) {
+                    if (data.companyName) setCompanyName(data.companyName);
+                    if (data.regNo) setRegNo(data.regNo);
+                    if (data.address) setAddress(data.address);
+                    if (data.phone) setPhone(data.phone);
+                    if (data.email) setEmail(data.email);
+                }
+            };
+            reader.readAsDataURL(file);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to scan letterhead.");
+        } finally {
+            setScanning(false);
+        }
+        
+        // Reset input
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
 
     const handlePolishReason = async () => {
         if (!reason) return;
@@ -90,7 +124,7 @@ We have prepared detailed cash vouchers for all missing expense transactions dur
 • Prepared with complete details of the transaction
 • Cross-referenced with our bank statements
 • Signed and approved by appropriate management personnel
-• Numbered sequentially for easy identification (${voucherStart} through ${voucherEnd})
+• Numbered sequentially (${voucherStart} through ${voucherEnd})
 
 2. Bank Statements (Attached)
 Complete bank statements for the Year of Assessment ${yearAssessment} are enclosed, which clearly show:
@@ -128,11 +162,13 @@ ${companyName}`;
         const doc = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
-            format: 'a4'
+            format: paperSize
         });
 
         const margin = 20;
-        const width = 170;
+        // Adjust width based on paper size
+        const pageWidth = paperSize === 'a4' ? 210 : 216; // A4: 210mm, Letter: 216mm
+        const width = pageWidth - (margin * 2);
         let y = 20;
         const lineHeight = 5;
 
@@ -183,7 +219,7 @@ ${companyName}`;
             "CIRCUMSTANCES OF MISSING RECEIPTS:",
             reason,
             "",
-            "As a result, we were unable to retain complete original receipts for all business expenses incurred. However, we have maintained comprehensive bank statements and financial reconciliation records for the entire fiscal year. whatever",
+            "As a result, we were unable to retain complete original receipts for all business expenses incurred. However, we have maintained comprehensive bank statements and financial reconciliation records for the entire fiscal year.",
             "",
             "SUPPORTING DOCUMENTATION:",
             "In lieu of original receipts, we hereby submit the following supporting documentation:",
@@ -212,15 +248,17 @@ ${companyName}`;
              const splitLine = doc.splitTextToSize(line, width);
              doc.text(splitLine, margin, y);
              y += (splitLine.length * lineHeight);
-             // Page break check simple
-             if (y > 270) {
+             // Page break check simple (using ~270 for A4, Letter is ~279, so safe margin)
+             const pageHeight = paperSize === 'a4' ? 297 : 279;
+             if (y > (pageHeight - 20)) {
                  doc.addPage();
                  y = 20;
              }
         });
 
         y += 10;
-        if (y > 250) { doc.addPage(); y = 20; }
+        const pageHeight = paperSize === 'a4' ? 297 : 279;
+        if (y > (pageHeight - 40)) { doc.addPage(); y = 20; }
 
         doc.setFont("helvetica", "bold");
         doc.text(signatoryName, margin, y);
@@ -246,7 +284,39 @@ ${companyName}`;
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Left: Configuration */}
                 <div className="space-y-6">
-                    <NeuroCard title="Company Information">
+                    <NeuroCard>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">Company Information</h3>
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    className="hidden" 
+                                    accept="image/*"
+                                    onChange={handleScanLetterhead} 
+                                />
+                                <NeuroButton 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={scanning}
+                                    className="!text-xs !py-1.5 !px-3 flex items-center gap-2 text-blue-600"
+                                >
+                                    {scanning ? <Loader2 size={14} className="animate-spin" /> : <ScanLine size={14} />}
+                                    {scanning ? "Scanning..." : "Scan Letterhead"}
+                                </NeuroButton>
+                                
+                                <div className="flex items-center bg-[#e0e5ec] rounded-xl shadow-[inset_4px_4px_8px_rgba(163,177,198,0.6),inset_-4px_-4px_8px_rgba(255,255,255,0.5)] p-0.5">
+                                    <NeuroSelect 
+                                        value={paperSize} 
+                                        onChange={(e) => setPaperSize(e.target.value as any)}
+                                        className="!py-1 !px-2 !text-xs !bg-transparent !border-none !shadow-none w-24 h-6 text-gray-600 font-semibold"
+                                    >
+                                        <option value="a4">A4</option>
+                                        <option value="letter">US Letter</option>
+                                    </NeuroSelect>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="space-y-3">
                             <label className="block text-xs font-bold text-gray-500 uppercase">Company Name</label>
                             <NeuroInput value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
@@ -263,7 +333,12 @@ ${companyName}`;
                             </div>
 
                             <label className="block text-xs font-bold text-gray-500 uppercase">Address</label>
-                            <NeuroTextarea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} className="resize-none" />
+                            <NeuroTextarea 
+                                rows={6} 
+                                value={address} 
+                                onChange={(e) => setAddress(e.target.value)} 
+                                className="resize-y" 
+                            />
                             
                             <label className="block text-xs font-bold text-gray-500 uppercase">Email</label>
                             <NeuroInput value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -285,15 +360,19 @@ ${companyName}`;
 
                             <label className="block text-xs font-bold text-gray-500 uppercase flex justify-between items-center">
                                 Reason for Loss
-                                <button onClick={handlePolishReason} disabled={isPolishing} className="text-[10px] flex items-center gap-1 text-purple-600 bg-purple-50 px-2 py-0.5 rounded hover:bg-purple-100 transition-colors">
-                                    <Sparkles size={10} /> {isPolishing ? 'Refining...' : 'AI Professional Polish'}
-                                </button>
+                                <NeuroButton 
+                                    onClick={handlePolishReason} 
+                                    disabled={isPolishing} 
+                                    className="!py-1 !px-2 !text-[10px] flex items-center gap-1 text-purple-600"
+                                >
+                                    <Sparkles size={10} /> {isPolishing ? 'Refining...' : 'AI Polish'}
+                                </NeuroButton>
                             </label>
                             <NeuroTextarea 
-                                rows={4} 
+                                rows={15} 
                                 value={reason} 
                                 onChange={(e) => setReason(e.target.value)} 
-                                className="resize-none text-sm"
+                                className="text-sm resize-y"
                                 placeholder="Explain why receipts are missing..."
                             />
                         </div>
@@ -323,7 +402,7 @@ ${companyName}`;
                                 </div>
                             </div>
 
-                            <div className="pt-2 border-t border-gray-200 mt-2">
+                            <div className="pt-2 border-t border-gray-300/30 mt-2">
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Signatory</label>
                                 <div className="grid grid-cols-2 gap-3">
                                     <NeuroInput placeholder="Name" value={signatoryName} onChange={(e) => setSignatoryName(e.target.value)} />
@@ -337,12 +416,15 @@ ${companyName}`;
                 {/* Right: Preview */}
                 <div className="flex flex-col h-full">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold text-gray-600">Letter Preview</h3>
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-gray-600">Letter Preview</h3>
+                            <NeuroBadge color="text-gray-500 bg-gray-200 uppercase">{paperSize}</NeuroBadge>
+                        </div>
                         <div className="flex gap-2">
-                            <NeuroButton onClick={handleCopy} className="!py-2 !px-3 text-xs bg-white text-gray-600 border border-gray-200 shadow-sm hover:bg-gray-50">
+                            <NeuroButton onClick={handleCopy} className="!py-2 !px-3 text-xs text-gray-600">
                                 <Copy size={14} className="mr-1 inline" /> Copy
                             </NeuroButton>
-                            <NeuroButton onClick={handleDownloadPDF} className="!py-2 !px-3 text-xs bg-blue-600 text-white shadow-md hover:bg-blue-700">
+                            <NeuroButton onClick={handleDownloadPDF} className="!py-2 !px-3 text-xs text-blue-600">
                                 <Download size={14} className="mr-1 inline" /> PDF
                             </NeuroButton>
                         </div>
