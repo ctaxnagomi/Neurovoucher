@@ -18,11 +18,22 @@ export const ChatAssistant: React.FC = () => {
 
   useEffect(() => {
     if (!chatSessionRef.current) {
-        // Prepare context
-        const context = `LHDN Submission Checklist:\n${CHECKLIST_ITEMS.map((item, i) => `${i+1}. ${item}`).join('\n')}\n\nUser is navigating the NeuroVoucher system.`;
+        // Prepare context with specific checklist and user progress indication
+        const context = `
+Current System Context:
+1. User Location: ${location.pathname} (AI Advisor Panel)
+2. Active Goal: Managing Finance Vouchers & LHDN Compliance
+
+LHDN Submission Checklist Reference:
+${CHECKLIST_ITEMS.map((item, i) => `${i+1}. ${item}`).join('\n')}
+
+Instruction:
+- Reference the checklist items when the user asks about compliance.
+- Guide them through the voucher creation process if they seem stuck.
+`;
         chatSessionRef.current = createChatSession(context);
     }
-  }, []);
+  }, [location.pathname]);
 
   // Handle auto-fill from Dashboard insights
   useEffect(() => {
@@ -73,7 +84,15 @@ export const ChatAssistant: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
-        <NeuroCard className="flex-1 flex flex-col overflow-hidden mb-6 relative" title="NEURO COUNCIL (AI ADVISOR AND AGENTIC ASSISTANCE)">
+        <NeuroCard className="flex-1 flex flex-col overflow-hidden mb-6 relative">
+            {/* Custom Header Layout */}
+            <div className="mb-4 border-b border-gray-200/50 pb-3">
+                 <div className="border border-dashed border-blue-300 rounded px-2 py-0.5 w-fit mb-2 bg-blue-50/50">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">GEMINI 3 PRO ADVISOR</h4>
+                 </div>
+                 <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">NEURO COUNCIL (AI ADVISOR AND AGENTIC ASSISTANCE)</h3>
+            </div>
+
             <div className="flex-1 overflow-y-auto space-y-6 pr-4 scroll-smooth pb-4">
                 {messages.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>

@@ -101,7 +101,7 @@ export const VoucherGenerator: React.FC = () => {
   const [extractedData, setExtractedData] = useState<any>(null);
   const [showOCRHelp, setShowOCRHelp] = useState(false);
   const [ocrLanguage, setOcrLanguage] = useState('en');
-  const [errorModal, setErrorModal] = useState<{show: boolean, message: string}>({ show: false, message: '' });
+  const [errorModal, setErrorModal] = useState<{show: boolean, message: string, title?: string}>({ show: false, message: '' });
 
   // Batch Scan State
   const [batchQueue, setBatchQueue] = useState<BatchItem[]>([]);
@@ -301,7 +301,7 @@ export const VoucherGenerator: React.FC = () => {
     // Validate File Type
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
     if (!validTypes.includes(file.type)) {
-        setErrorModal({ show: true, message: "Unsupported file type. Please upload a JPEG, PNG, or WebP image." });
+        setErrorModal({ show: true, title: "Unsupported File", message: "Unsupported file type. Please upload a JPEG, PNG, or WebP image." });
         // Clear inputs
         if (fileInputRef.current) fileInputRef.current.value = '';
         if (companyDocInputRef.current) companyDocInputRef.current.value = '';
@@ -311,7 +311,7 @@ export const VoucherGenerator: React.FC = () => {
     // Validate File Size (10MB limit)
     const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-        setErrorModal({ show: true, message: "File size too large. Please upload an image smaller than 10MB." });
+        setErrorModal({ show: true, title: "File Too Large", message: "File size too large. Please upload an image smaller than 10MB." });
         // Clear inputs
         if (fileInputRef.current) fileInputRef.current.value = '';
         if (companyDocInputRef.current) companyDocInputRef.current.value = '';
@@ -339,32 +339,40 @@ export const VoucherGenerator: React.FC = () => {
             console.error(error);
             
             let message = "An error occurred while scanning the receipt.";
+            let title = "Scan Failed";
             const errStr = error.toString().toLowerCase();
             const errMsg = (error.message || "").toLowerCase();
 
             if (errMsg.includes("parsing_failed") || errMsg === "empty_data") {
-                message = "We couldn't extract text. The image might be too blurry, low contrast, or not a valid receipt. Please ensure good lighting and try again.";
+                title = "Unclear Image";
+                message = "We couldn't extract any text. The image might be too blurry, dark, or not a valid receipt. Please try again with a clearer photo.";
             } else if (errMsg.includes("no_response_text") || errStr.includes("safety")) {
-                message = "The AI could not process this image. It may contain content flagged by safety filters or is unrecognizable.";
+                title = "Processing Failed";
+                message = "The AI could not process this image. It may be flagged by safety filters or contain unrecognized content.";
             } else if (errMsg.includes("api_key") || errStr.includes("403") || errStr.includes("401")) {
-                message = "API Authorization failed. Please check your API Key in Settings.";
+                title = "Authentication Error";
+                message = "API Authorization failed. Please ensure your API Key is correctly configured in Settings.";
             } else if (errStr.includes("failed to fetch") || errStr.includes("network")) {
-                message = "Network connection error. Please check your internet connection and try again.";
-            } else if (errStr.includes("503") || errStr.includes("500") || errStr.includes("overloaded")) {
-                message = "AI Service is currently high in demand. Please wait a moment and try again.";
+                title = "Connection Error";
+                message = "We couldn't reach the server. Please check your internet connection.";
+            } else if (errStr.includes("503") || errStr.includes("overloaded")) {
+                title = "Service Busy";
+                message = "The AI service is currently experiencing high traffic. Please try again in a moment.";
             } else if (errStr.includes("400")) {
-                message = "Invalid request. The image format might be corrupted or unsupported.";
+                title = "Invalid Image";
+                message = "The image format seems corrupted or unsupported by the AI model.";
             } else if (errStr.includes("quota")) {
-                message = "API Usage Quota exceeded. Please check your billing details or try again later.";
+                 title = "Quota Exceeded";
+                 message = "You have exceeded your API usage quota. Please check your billing details.";
             }
 
-            setErrorModal({ show: true, message });
+            setErrorModal({ show: true, message, title });
         } finally {
             setScanning(false);
         }
     };
     reader.onerror = () => {
-        setErrorModal({ show: true, message: "Failed to read the file from your device. Please try again." });
+        setErrorModal({ show: true, title: "Read Error", message: "Failed to read the file from your device. Please try again." });
         setScanning(false);
     };
     reader.readAsDataURL(file);
@@ -1525,12 +1533,12 @@ export const VoucherGenerator: React.FC = () => {
                     <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4 text-red-600">
                         <AlertTriangle size={24} />
                     </div>
-                    <h3 className="text-lg font-bold text-gray-700 mb-2">Scan Failed</h3>
-                    <p className="text-sm text-gray-500 mb-6 px-2">
+                    <h3 className="text-lg font-bold text-gray-700 mb-2">{errorModal.title || "Scan Failed"}</h3>
+                    <p className="text-sm text-gray-500 mb-6 px-2 leading-relaxed">
                     {errorModal.message}
                     </p>
                     <div className="flex gap-3 justify-center">
-                        <NeuroButton onClick={() => setErrorModal({ ...errorModal, show: false })} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium">Dismiss</NeuroButton>
+                        <NeuroButton onClick={() => setErrorModal({ ...errorModal, show: false })} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6">Dismiss</NeuroButton>
                     </div>
             </NeuroCard>
             </div>
@@ -1711,9 +1719,14 @@ export const VoucherGenerator: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                     <button onClick={() => setShowOCRHelp(true)} className="text-gray-400 hover:text-blue-500">
-                        <Info size={20} />
-                     </button>
+                    <div className="flex items-center gap-2">
+                         <button onClick={() => setShowOCRHelp(true)} className="text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-md hover:bg-blue-50" title="Field Guide">
+                            <Info size={20} />
+                         </button>
+                         <button onClick={() => { setShowOCRConfirm(false); setExtractedData(null); }} className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50" title="Close">
+                            <X size={20} />
+                         </button>
+                    </div>
                 </div>
                 
                 <div className="space-y-6 mb-8 px-1">
@@ -1727,7 +1740,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.payeeName || ''} 
                                     onChange={(e) => handleExtractedDataChange('payeeName', e.target.value)}
                                     placeholder="Merchant Name"
-                                    className="!py-2 text-sm font-semibold"
+                                    className={`!py-2 text-sm font-semibold ${extractedData.payeeName ? 'border-blue-200 bg-blue-50/10' : ''}`}
                                 />
                              </div>
                              <div>
@@ -1736,7 +1749,7 @@ export const VoucherGenerator: React.FC = () => {
                                     type="date"
                                     value={extractedData.date || ''} 
                                     onChange={(e) => handleExtractedDataChange('date', e.target.value)}
-                                    className="!py-2 text-sm"
+                                    className={`!py-2 text-sm ${extractedData.date ? 'border-blue-200 bg-blue-50/10' : ''}`}
                                 />
                              </div>
                              <div>
@@ -1746,9 +1759,14 @@ export const VoucherGenerator: React.FC = () => {
                                         type="number"
                                         value={extractedData.totalAmount || ''} 
                                         onChange={(e) => handleExtractedDataChange('totalAmount', parseFloat(e.target.value))}
-                                        className="!py-2 text-sm pr-2 text-right font-bold text-purple-600"
+                                        className={`!py-2 text-sm pr-2 text-right font-bold text-purple-600 ${extractedData.totalAmount ? 'border-purple-200 bg-purple-50/10' : 'border-red-200 bg-red-50/10'}`}
                                     />
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">RM</span>
+                                    {(!extractedData.totalAmount || extractedData.totalAmount === 0) && (
+                                        <div className="absolute right-2 top-[-20px] text-[10px] text-red-500 font-bold flex items-center bg-red-50 px-1 rounded">
+                                            <AlertTriangle size={10} className="mr-1"/> Check Amount
+                                        </div>
+                                    )}
                                 </div>
                              </div>
                         </div>
@@ -1768,7 +1786,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyName || ''}
                                     onChange={(e) => handleExtractedDataChange('companyName', e.target.value)}
                                     placeholder="N/A"
-                                    className="!py-1.5 text-xs"
+                                    className={`!py-1.5 text-xs ${extractedData.companyName ? 'bg-green-50/10 border-green-200' : ''}`}
                                 />
                             </div>
                             <div>
@@ -1777,7 +1795,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyRegNo || ''}
                                     onChange={(e) => handleExtractedDataChange('companyRegNo', e.target.value)}
                                     placeholder="N/A"
-                                    className="!py-1.5 text-xs"
+                                    className={`!py-1.5 text-xs ${extractedData.companyRegNo ? 'bg-green-50/10 border-green-200' : ''}`}
                                 />
                             </div>
                             <div className="col-span-2">
@@ -1786,7 +1804,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyAddress || ''}
                                     onChange={(e) => handleExtractedDataChange('companyAddress', e.target.value)}
                                     placeholder="N/A"
-                                    className="!py-1.5 text-xs"
+                                    className={`!py-1.5 text-xs ${extractedData.companyAddress ? 'bg-green-50/10 border-green-200' : ''}`}
                                 />
                             </div>
                         </div>
@@ -1801,12 +1819,16 @@ export const VoucherGenerator: React.FC = () => {
                             
                              <label className="flex items-center gap-2 text-xs cursor-pointer">
                                 <span className={extractedData.taxDeductible ? "text-green-600 font-bold" : "text-gray-500"}>Deductible</span>
-                                <input 
-                                    type="checkbox" 
-                                    checked={!!extractedData.taxDeductible} 
-                                    onChange={(e) => handleExtractedDataChange('taxDeductible', e.target.checked)}
-                                    className="accent-green-500 w-4 h-4"
-                                />
+                                <div className="relative inline-block w-10 h-5 transition duration-200 ease-in-out rounded-full cursor-pointer">
+                                   <input 
+                                       type="checkbox" 
+                                       className="absolute w-full h-full opacity-0 cursor-pointer z-10"
+                                       checked={!!extractedData.taxDeductible}
+                                       onChange={(e) => handleExtractedDataChange('taxDeductible', e.target.checked)}
+                                   />
+                                   <div className={`w-10 h-5 rounded-full shadow-inner transition-colors duration-200 ${extractedData.taxDeductible ? 'bg-green-500' : 'bg-gray-200'}`}></div>
+                                   <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full shadow transition-transform duration-200 ${extractedData.taxDeductible ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                               </div>
                              </label>
                          </div>
 
@@ -1816,7 +1838,7 @@ export const VoucherGenerator: React.FC = () => {
                                 <NeuroInput 
                                     value={extractedData.taxCategory || ''}
                                     onChange={(e) => handleExtractedDataChange('taxCategory', e.target.value)}
-                                    className="!py-1.5 text-xs !bg-white"
+                                    className={`!py-1.5 text-xs !bg-white ${extractedData.taxCategory ? 'border-blue-300' : ''}`}
                                 />
                             </div>
                              <div>
@@ -1824,7 +1846,7 @@ export const VoucherGenerator: React.FC = () => {
                                 <NeuroInput 
                                     value={extractedData.taxCode || extractedData.taxLimit || ''}
                                     onChange={(e) => handleExtractedDataChange('taxCode', e.target.value)}
-                                    className="!py-1.5 text-xs !bg-white"
+                                    className={`!py-1.5 text-xs !bg-white ${extractedData.taxCode ? 'border-blue-300' : ''}`}
                                 />
                             </div>
                             <div className="col-span-2">
@@ -1845,7 +1867,7 @@ export const VoucherGenerator: React.FC = () => {
                         }} 
                         className="text-sm px-6 bg-white hover:bg-gray-100 text-gray-600 shadow-sm border border-gray-300"
                     >
-                        Discard
+                        Cancel
                     </NeuroButton>
                     <NeuroButton 
                         onClick={() => applyOCRData()} 

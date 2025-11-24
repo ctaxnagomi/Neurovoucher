@@ -4,6 +4,7 @@ import { NeuroCard, NeuroInput, NeuroButton } from '../components/NeuroComponent
 import { createChatSession } from '../services/geminiService';
 import { Send, Bot, User, Sparkles } from 'lucide-react';
 import { ChatMessage } from '../types';
+import { CHECKLIST_ITEMS } from './LHDNLetterGenerator';
 
 export const ChatAssistant: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -17,9 +18,22 @@ export const ChatAssistant: React.FC = () => {
 
   useEffect(() => {
     if (!chatSessionRef.current) {
-        chatSessionRef.current = createChatSession();
+        // Prepare context with specific checklist and user progress indication
+        const context = `
+Current System Context:
+1. User Location: ${location.pathname} (AI Advisor Panel)
+2. Active Goal: Managing Finance Vouchers & LHDN Compliance
+
+LHDN Submission Checklist Reference:
+${CHECKLIST_ITEMS.map((item, i) => `${i+1}. ${item}`).join('\n')}
+
+Instruction:
+- Reference the checklist items when the user asks about compliance.
+- Guide them through the voucher creation process if they seem stuck.
+`;
+        chatSessionRef.current = createChatSession(context);
     }
-  }, []);
+  }, [location.pathname]);
 
   // Handle auto-fill from Dashboard insights
   useEffect(() => {
@@ -70,7 +84,15 @@ export const ChatAssistant: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
-        <NeuroCard className="flex-1 flex flex-col overflow-hidden mb-6 relative" title="Gemini 3 Pro Advisor">
+        <NeuroCard className="flex-1 flex flex-col overflow-hidden mb-6 relative">
+            {/* Custom Header Layout */}
+            <div className="mb-4 border-b border-gray-200/50 pb-3">
+                 <div className="border border-dashed border-blue-300 rounded px-2 py-0.5 w-fit mb-2 bg-blue-50/50">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">GEMINI 3 PRO ADVISOR</h4>
+                 </div>
+                 <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">NEURO COUNCIL (AI ADVISOR AND AGENTIC ASSISTANCE)</h3>
+            </div>
+
             <div className="flex-1 overflow-y-auto space-y-6 pr-4 scroll-smooth pb-4">
                 {messages.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -110,7 +132,7 @@ export const ChatAssistant: React.FC = () => {
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         placeholder="Ask about LHDN rules, tax categories..."
-                        className="w-full !rounded-2xl !py-4 text-base"
+                        className="w-full !rounded-2xl !py-4 text-base !bg-white !shadow-none border border-gray-200/60 focus:!border-blue-400 focus:!ring-4 focus:!ring-blue-50 transition-all placeholder:text-gray-400"
                     />
                 </div>
                 <NeuroButton 

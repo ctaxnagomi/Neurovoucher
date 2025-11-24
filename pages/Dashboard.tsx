@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { NeuroCard, NeuroBadge } from '../components/NeuroComponents';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Timer, Zap, ShieldCheck } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
+import { Timer, Zap, ShieldCheck, Info } from 'lucide-react';
 
 const weeklyData = [
   { name: 'Mon', amt: 2400, type: 10, freq: 5, tax: 2100 },
@@ -33,6 +33,7 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState<'Weekly' | 'Annually'>('Weekly');
   const [metric, setMetric] = useState<'amt' | 'type' | 'freq' | 'tax'>('amt');
+  const [viewMode, setViewMode] = useState<'expenditure' | 'taxCompliance'>('expenditure');
 
   // LHDN Tax Submission Countdown (Mock: June 30th deadline)
   const today = new Date();
@@ -41,7 +42,13 @@ export const Dashboard: React.FC = () => {
   if (today > deadline) deadline.setFullYear(currentYear + 1);
   const daysLeft = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-  const currentData = timeRange === 'Weekly' ? weeklyData : annualData;
+  // Process data to include non-deductible amount
+  const rawData = timeRange === 'Weekly' ? weeklyData : annualData;
+  const currentData = rawData.map(item => ({
+      ...item,
+      nonDeductible: item.amt - item.tax
+  }));
+
   const activeColor = 
     metric === 'amt' ? '#63b3ed' : 
     metric === 'type' ? '#9f7aea' : 
@@ -81,30 +88,76 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Main Chart Section with Toggles */}
-      <NeuroCard className="h-[500px] flex flex-col relative">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <div>
-                <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">
-                  {timeRange} Expenditure
-                </h3>
-                <div className="flex gap-2 mt-2 bg-gray-100/50 p-1 rounded-full w-fit">
-                    <button 
-                        onClick={() => setTimeRange('Weekly')}
-                        className={`text-xs px-4 py-1.5 rounded-full transition-all duration-300 font-medium ${timeRange === 'Weekly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                        Weekly
-                    </button>
-                    <button 
-                        onClick={() => setTimeRange('Annually')}
-                        className={`text-xs px-4 py-1.5 rounded-full transition-all duration-300 font-medium ${timeRange === 'Annually' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                        Annually
-                    </button>
+      <NeuroCard className="h-[550px] flex flex-col relative">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
+            <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">
+                        {timeRange} {viewMode === 'expenditure' ? 'Expenditure' : 'Tax Deductibility'}
+                    </h3>
+                    {viewMode === 'taxCompliance' && (
+                        <div className="group relative z-20">
+                            <Info size={18} className="text-blue-500 cursor-help" />
+                            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-72 bg-white border border-blue-100 shadow-xl rounded-xl p-4 opacity-0 group-hover:opacity-100 transition-all pointer-events-none scale-95 group-hover:scale-100 origin-left">
+                                <div className="flex items-start gap-3 mb-2">
+                                    <div className="bg-blue-50 p-2 rounded-lg">
+                                        <ShieldCheck size={16} className="text-blue-600" />
+                                    </div>
+                                    <div>
+                                        <strong className="text-xs font-bold text-gray-700 block">LHDN Public Ruling 4/2020</strong>
+                                        <span className="text-[10px] text-gray-400">Latest Publication</span>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-600 leading-relaxed">
+                                    Expenses must be wholly and exclusively incurred in the production of gross income.
+                                    <br/><br/>
+                                    <span className="text-red-500 font-bold">Non-Deductible:</span> Private expenses, initial capital, 50% of entertainment.
+                                </p>
+                                <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] text-blue-500 font-medium">
+                                    Tap to ask AI Advisor for details
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                
+                <div className="flex flex-wrap gap-3">
+                    {/* Mode Toggle */}
+                    <div className="flex bg-gray-100/50 p-1 rounded-xl w-fit">
+                        <button 
+                            onClick={() => setViewMode('expenditure')}
+                            className={`text-xs px-4 py-1.5 rounded-lg transition-all duration-300 font-medium ${viewMode === 'expenditure' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            Overview
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('taxCompliance')}
+                            className={`text-xs px-4 py-1.5 rounded-lg transition-all duration-300 font-medium flex items-center gap-2 ${viewMode === 'taxCompliance' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            Deductible vs Non-Deductible
+                        </button>
+                    </div>
+
+                     {/* Time Toggle */}
+                    <div className="flex bg-gray-100/50 p-1 rounded-xl w-fit">
+                        <button 
+                            onClick={() => setTimeRange('Weekly')}
+                            className={`text-xs px-4 py-1.5 rounded-lg transition-all duration-300 font-medium ${timeRange === 'Weekly' ? 'bg-white text-gray-700 shadow-sm ring-1 ring-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            Weekly
+                        </button>
+                        <button 
+                            onClick={() => setTimeRange('Annually')}
+                            className={`text-xs px-4 py-1.5 rounded-lg transition-all duration-300 font-medium ${timeRange === 'Annually' ? 'bg-white text-gray-700 shadow-sm ring-1 ring-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            Annually
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {/* Tax Deadline Countdown Widget */}
-            <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex items-center gap-3 animate-in fade-in slide-in-from-right duration-500 shadow-sm">
+            <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex items-center gap-3 animate-in fade-in slide-in-from-right duration-500 shadow-sm mt-4 xl:mt-0 w-full xl:w-auto">
                 <div className="bg-orange-100 p-2 rounded-lg text-orange-600">
                     <Timer size={20} />
                 </div>
@@ -119,43 +172,60 @@ export const Dashboard: React.FC = () => {
 
         <div className="flex-1 min-h-0 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={currentData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#718096'}} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{fill: '#718096'}} />
+            <BarChart data={currentData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#718096', fontSize: 12}} dy={10} />
+              <YAxis axisLine={false} tickLine={false} tick={{fill: '#718096', fontSize: 12}} />
               <Tooltip 
                   cursor={{fill: '#cbd5e0', opacity: 0.2}}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '9px 9px 16px rgba(163,177,198,0.6)', backgroundColor: '#e0e5ec', color: '#4a5568' }}
               />
-              <Bar dataKey={metric} radius={[6, 6, 0, 0]} animationDuration={500}>
-                {currentData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={activeColor} />
-                ))}
-              </Bar>
+              
+              {viewMode === 'expenditure' ? (
+                  <Bar dataKey={metric} radius={[6, 6, 0, 0]} animationDuration={500}>
+                    {currentData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={activeColor} />
+                    ))}
+                  </Bar>
+              ) : (
+                  <>
+                    <Legend 
+                        verticalAlign="top" 
+                        align="right"
+                        height={36} 
+                        iconType="circle"
+                        wrapperStyle={{ fontSize: '12px', fontWeight: 600, color: '#718096' }}
+                    />
+                    <Bar dataKey="tax" name="Tax Deductible" stackId="a" fill="#48bb78" radius={[0, 0, 4, 4]} animationDuration={500} />
+                    <Bar dataKey="nonDeductible" name="Non-Deductible" stackId="a" fill="#fc8181" radius={[4, 4, 0, 0]} animationDuration={500} />
+                  </>
+              )}
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Metric Toggles */}
-        <div className="mt-6 flex justify-center gap-2 sm:gap-4 border-t border-gray-200/50 pt-4 overflow-x-auto pb-2 sm:pb-0">
-            <button 
-                onClick={() => setMetric('amt')} 
-                className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${metric === 'amt' ? 'bg-blue-50 text-blue-600 shadow-inner ring-1 ring-blue-100' : 'text-gray-400 hover:bg-gray-50'}`}
-            >
-                Total Amount
-            </button>
-            <button 
-                onClick={() => setMetric('type')} 
-                className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${metric === 'type' ? 'bg-purple-50 text-purple-600 shadow-inner ring-1 ring-purple-100' : 'text-gray-400 hover:bg-gray-50'}`}
-            >
-                Voucher Type
-            </button>
-            <button 
-                onClick={() => setMetric('freq')} 
-                className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${metric === 'freq' ? 'bg-green-50 text-green-600 shadow-inner ring-1 ring-green-100' : 'text-gray-400 hover:bg-gray-50'}`}
-            >
-                Category Frequency
-            </button>
-        </div>
+        {/* Metric Toggles - Only visible in Overview mode */}
+        {viewMode === 'expenditure' && (
+            <div className="mt-6 flex justify-center gap-2 sm:gap-4 border-t border-gray-200/50 pt-4 overflow-x-auto pb-2 sm:pb-0">
+                <button 
+                    onClick={() => setMetric('amt')} 
+                    className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${metric === 'amt' ? 'bg-blue-50 text-blue-600 shadow-inner ring-1 ring-blue-100' : 'text-gray-400 hover:bg-gray-50'}`}
+                >
+                    Total Amount
+                </button>
+                <button 
+                    onClick={() => setMetric('type')} 
+                    className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${metric === 'type' ? 'bg-purple-50 text-purple-600 shadow-inner ring-1 ring-purple-100' : 'text-gray-400 hover:bg-gray-50'}`}
+                >
+                    Voucher Type
+                </button>
+                <button 
+                    onClick={() => setMetric('freq')} 
+                    className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${metric === 'freq' ? 'bg-green-50 text-green-600 shadow-inner ring-1 ring-green-100' : 'text-gray-400 hover:bg-gray-50'}`}
+                >
+                    Category Frequency
+                </button>
+            </div>
+        )}
       </NeuroCard>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
