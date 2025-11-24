@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins } from 'lucide-react';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins, FileSpreadsheet } from 'lucide-react';
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 import { jsPDF } from "jspdf";
+import { generateDetailedVoucherExcel } from '../lib/export/excel-generator';
 
 // Simple Number to Words fallback if lib missing (Mock implementation for this context)
 const toWords = (amount: number) => {
@@ -153,6 +154,14 @@ export const VoucherGenerator: React.FC = () => {
       dictationCleanupRef.current();
     };
   }, []);
+
+  // Cleanup PDF URL on preview close
+  useEffect(() => {
+      if (!showPdfPreview && previewPdfUrl) {
+          URL.revokeObjectURL(previewPdfUrl);
+          setPreviewPdfUrl(null);
+      }
+  }, [showPdfPreview, previewPdfUrl]);
 
   const handleFieldChange = (field: string) => {
     if (autoFilledFields.has(field)) {
@@ -882,6 +891,68 @@ export const VoucherGenerator: React.FC = () => {
   const handleDownloadPDF = () => generatePDF('download');
   const handlePreviewPDF = () => generatePDF('preview');
 
+  const handleExportExcel = () => {
+    try {
+        const voucherData = {
+            companyName, companyRegNo, companyAddress, companyTel,
+            voucherNo, date: voucherDate, payee, payeeIc, category,
+            items, total, preparedBy, approvedBy
+        };
+        const blob = generateDetailedVoucherExcel(voucherData);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${voucherNo || 'voucher'}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error("Excel Export Error", e);
+        alert("Failed to export Excel.");
+    }
+  };
+
+  const handleExportWord = () => {
+     const content = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head><meta charset='utf-8'><title>${voucherNo}</title></head>
+        <body style="font-family: Arial, sans-serif;">
+            <h2 style="text-align:center">${companyName}</h2>
+            <p style="text-align:center; font-size:10pt">${companyAddress}<br/>Reg: ${companyRegNo}</p>
+            <hr/>
+            <h1 style="text-align:center">PAYMENT VOUCHER</h1>
+            <table style="width:100%">
+                <tr><td><strong>Voucher No:</strong> ${voucherNo}</td><td align="right"><strong>Date:</strong> ${voucherDate}</td></tr>
+                <tr><td><strong>Payee:</strong> ${payee}</td><td align="right"><strong>IC:</strong> ${payeeIc}</td></tr>
+            </table>
+            <br/>
+            <table border="1" cellpadding="5" cellspacing="0" style="width:100%; border-collapse:collapse;">
+                <tr style="background-color:#eee;"><th>No</th><th>Description</th><th>Amount (RM)</th></tr>
+                ${items.map((item, i) => `<tr><td align="center">${i+1}</td><td>${item.description}</td><td align="right">${Number(item.amount).toFixed(2)}</td></tr>`).join('')}
+                <tr><td colspan="2" align="right"><strong>TOTAL</strong></td><td align="right"><strong>${total.toFixed(2)}</strong></td></tr>
+            </table>
+            <br/><br/>
+            <table style="width:100%">
+                <tr>
+                    <td align="center">________________<br/>Prepared By<br/>${preparedBy}</td>
+                    <td align="center">________________<br/>Approved By<br/>${approvedBy}</td>
+                    <td align="center">________________<br/>Received By</td>
+                </tr>
+            </table>
+        </body></html>
+     `;
+     const blob = new Blob([content], { type: 'application/msword' });
+     const url = URL.createObjectURL(blob);
+     const a = document.createElement('a');
+     a.href = url;
+     a.download = `${voucherNo || 'voucher'}.doc`;
+     document.body.appendChild(a);
+     a.click();
+     document.body.removeChild(a);
+     URL.revokeObjectURL(url);
+  };
+
   const executeSaveVoucher = async (status: 'DRAFT' | 'COMPLETED' = 'COMPLETED') => {
     setShowConfirmDialog(false);
     setSaving(true);
@@ -1424,10 +1495,19 @@ export const VoucherGenerator: React.FC = () => {
                         </NeuroButton>
                         <NeuroButton 
                             onClick={handleDownloadPDF}
-                            className="w-full text-green-600 text-sm py-3 flex items-center justify-center gap-2"
+                            className="w-full text-red-600 text-sm py-3 flex items-center justify-center gap-2"
+                            title="Download PDF"
                         >
-                            <Download size={16} />
-                            Download
+                            <FileText size={16} /> PDF
+                        </NeuroButton>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                        <NeuroButton onClick={handleExportExcel} className="w-full text-green-600 text-sm py-3 flex items-center justify-center gap-2 bg-green-50 hover:bg-green-100 border border-green-200" title="Export to Excel">
+                            <FileSpreadsheet size={16} /> Excel
+                        </NeuroButton>
+                         <NeuroButton onClick={handleExportWord} className="w-full text-blue-600 text-sm py-3 flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 border border-blue-200" title="Export to Word">
+                            <FileText size={16} /> Word
                         </NeuroButton>
                     </div>
 
@@ -1919,17 +1999,34 @@ export const VoucherGenerator: React.FC = () => {
       {showConfirmDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={() => setShowConfirmDialog(false)}></div>
-            <NeuroCard className="w-full max-w-sm relative z-10 shadow-2xl border-2 border-blue-100 text-center">
+            <NeuroCard className="w-full max-w-md relative z-10 shadow-2xl border-2 border-blue-100 text-center bg-white">
                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4 text-blue-600">
                      <AlertTriangle size={24} />
                  </div>
-                 <h3 className="text-lg font-bold text-gray-700 mb-2">Confirm Save?</h3>
-                 <p className="text-sm text-gray-500 mb-6">
-                    You are about to save this voucher as <strong>Final/Completed</strong>. 
-                    Ensure all details are correct as this may affect financial records.
+                 <h3 className="text-lg font-bold text-gray-700 mb-2">Confirm Voucher Details</h3>
+                 
+                 <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left border border-gray-100">
+                    <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+                        <div className="text-gray-500 font-medium">Payee:</div>
+                        <div className="font-bold text-gray-800 text-right truncate">{payee || "-"}</div>
+                        
+                        <div className="text-gray-500 font-medium">Date:</div>
+                        <div className="font-bold text-gray-800 text-right">{voucherDate || "-"}</div>
+                        
+                        <div className="text-gray-500 font-medium">Total Amount:</div>
+                        <div className="font-bold text-blue-600 text-right">RM {total.toFixed(2)}</div>
+                        
+                        <div className="text-gray-500 font-medium">Items:</div>
+                        <div className="font-bold text-gray-800 text-right">{items.length}</div>
+                    </div>
+                 </div>
+
+                 <p className="text-xs text-gray-500 mb-6">
+                    You are about to save this voucher as <strong>Final/Completed</strong>. <br/>
+                    Please verify the summary above is correct before proceeding.
                  </p>
                  <div className="flex gap-3 justify-center">
-                     <NeuroButton onClick={() => setShowConfirmDialog(false)} className="text-sm">Edit</NeuroButton>
+                     <NeuroButton onClick={() => setShowConfirmDialog(false)} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 shadow-none border border-gray-200">Back to Edit</NeuroButton>
                      <NeuroButton onClick={() => executeSaveVoucher('COMPLETED')} className="text-sm text-white bg-blue-600 shadow-lg shadow-blue-300/50 hover:bg-blue-700">Confirm & Save</NeuroButton>
                  </div>
             </NeuroCard>

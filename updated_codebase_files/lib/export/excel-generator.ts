@@ -35,3 +35,55 @@ export const generateVouchersExcel = (vouchers: any[]): Blob => {
   // Return as Blob
   return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 };
+
+export const generateDetailedVoucherExcel = (voucher: any): Blob => {
+    const wb = XLSX.utils.book_new();
+
+    // 1. Header Info
+    const headerRows = [
+        [voucher.companyName.toUpperCase()],
+        [voucher.companyAddress],
+        [`Reg No: ${voucher.companyRegNo}`, `Tel: ${voucher.companyTel}`],
+        [],
+        ["PAYMENT VOUCHER"],
+        [],
+        ["Voucher No", voucher.voucherNo],
+        ["Date", voucher.date],
+        ["Payee", voucher.payee],
+        ["Payee IC", voucher.payeeIc],
+        ["Category", voucher.category],
+        [""],
+        ["Line Items"]
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(headerRows);
+
+    // 2. Line Items
+    const itemHeader = ["No", "Description", "Amount (RM)"];
+    XLSX.utils.sheet_add_aoa(ws, [itemHeader], { origin: -1 });
+
+    const itemsData = voucher.items.map((item: any, idx: number) => [
+        idx + 1,
+        item.description,
+        Number(item.amount) || 0
+    ]);
+    XLSX.utils.sheet_add_aoa(ws, itemsData, { origin: -1 });
+
+    // 3. Totals
+    XLSX.utils.sheet_add_aoa(ws, [["", "TOTAL", Number(voucher.total) || 0]], { origin: -1 });
+    
+    // 4. Signatures
+    XLSX.utils.sheet_add_aoa(ws, [
+        [],
+        ["Prepared By", "Approved By", "Received By"],
+        [voucher.preparedBy, voucher.approvedBy, ""]
+    ], { origin: -1 });
+
+    // Column widths
+    ws['!cols'] = [{ wch: 5 }, { wch: 40 }, { wch: 15 }];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Voucher Detail");
+    
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+};
