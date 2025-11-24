@@ -378,9 +378,9 @@ export const VoucherGenerator: React.FC = () => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
 
-      const newItems: BatchItem[] = Array.from(files).map(file => ({
+      const newItems: BatchItem[] = Array.from(files).map((file: File) => ({
           id: Math.random().toString(36).substring(7),
-          file,
+          file: file,
           status: 'pending',
           previewUrl: URL.createObjectURL(file)
       }));
