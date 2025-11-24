@@ -1,5 +1,5 @@
 {
-  "name": "NeuroVoucher AI",
+  "name": "V.0.1.25 NeuroVoucher (DeckerGUI)",
   "description": "A futuristic, neumorphic Cash Voucher Generator powered by Gemini 2.5 and 3.0 models for automated processing, voice interaction, and image editing.",
   "requestFramePermissions": [
     "microphone",

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect } from '../components/NeuroComponents';
-import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient } from '../services/geminiService';
+import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient, extractLetterhead } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
 import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins, FileSpreadsheet } from 'lucide-react';
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
@@ -295,29 +295,121 @@ export const VoucherGenerator: React.FC = () => {
     }
   };
 
-  // Generic handler for scanning receipts or company docs
-  const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    setErrorModal({ show: false, message: '' }); // Reset error
+  /**
+   * Helper: Determine if we should update a field based on strict user constraints.
+   * Rule 1: Always update if current value is empty.
+   * Rule 2: Always update if current value matches the placeholder.
+   * Rule 3: Always update if the field is currently marked as auto-filled (not user touched).
+   * Rule 4: If user has typed anything (and it's not the placeholder), PROTECT it.
+   */
+  const shouldUpdate = (currentVal: string, fieldKey?: string, placeholder?: string) => {
+    // Rule 3: If strictly marked as auto-filled, we can overwrite it (it's not user-entered)
+    if (fieldKey && autoFilledFields.has(fieldKey)) return true;
+
+    const val = (currentVal || '').trim();
+    const ph = (placeholder || '').trim();
+
+    // Rule 1: If currently empty, overwrite.
+    if (val.length === 0) return true;
+    
+    // Rule 2: If matches placeholder (treat as empty/default state). Case-insensitive check.
+    if (ph.length > 0 && val.toLowerCase() === ph.toLowerCase()) return true;
+    
+    // Default: Do NOT overwrite (User entered data)
+    return false;
+  };
+
+  /**
+   * Special logic for Company Fields during Receipt OCR.
+   * We do NOT want to overwrite Company Info if it was already set (even if by the Letterhead OCR),
+   * because Letterhead OCR is more trustworthy for company details than a random receipt's "Bill To".
+   */
+  const shouldUpdateCompanyFromReceipt = (currentVal: string, placeholder?: string) => {
+    const val = (currentVal || '').trim();
+    const ph = (placeholder || '').trim();
+    
+    // Only update if practically empty or default placeholder
+    if (val.length === 0) return true;
+    if (ph.length > 0 && val.toLowerCase() === ph.toLowerCase()) return true;
+    
+    return false;
+  };
+
+  // --- Handlers ---
+  
+  // 1. Company Information Scan (Letterhead/Business Card)
+  const handleCompanyScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate File Type
+    // Reuse validation logic
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
     if (!validTypes.includes(file.type)) {
-        setErrorModal({ show: true, title: "Unsupported File", message: "Unsupported file type. Please upload a JPEG, PNG, or WebP image." });
-        // Clear inputs
-        if (fileInputRef.current) fileInputRef.current.value = '';
+        setErrorModal({ show: true, title: "Unsupported File", message: "Please upload a JPEG, PNG, or WebP image." });
         if (companyDocInputRef.current) companyDocInputRef.current.value = '';
         return;
     }
 
-    // Validate File Size (10MB limit)
+    setScanning(true);
+    setErrorModal({ show: false, message: '' });
+
+    try {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const base64String = (reader.result as string).split(',')[1];
+            // Call isolated Letterhead Extraction
+            const data = await extractLetterhead(base64String);
+
+            if (data) {
+                const newAutoFilled = new Set(autoFilledFields);
+
+                const apply = (current: string, incoming: string | undefined, setter: Function, key: string, ph: string) => {
+                    // Use standard shouldUpdate for direct company scan
+                    if (incoming && shouldUpdate(current, key, ph)) {
+                        setter(incoming);
+                        newAutoFilled.add(key);
+                    }
+                };
+
+                // STRICTLY only apply company fields
+                apply(companyName, data.companyName, setCompanyName, 'companyName', PLACEHOLDERS.companyName);
+                apply(companyRegNo, data.regNo, setCompanyRegNo, 'companyRegNo', PLACEHOLDERS.companyRegNo);
+                apply(companyAddress, data.address, setCompanyAddress, 'companyAddress', PLACEHOLDERS.companyAddress);
+                apply(companyTel, data.phone, setCompanyTel, 'companyTel', PLACEHOLDERS.companyTel);
+                apply(companyEmail, data.email, setCompanyEmail, 'companyEmail', PLACEHOLDERS.companyEmail);
+                
+                setAutoFilledFields(newAutoFilled);
+            } else {
+                setErrorModal({ show: true, title: "Extraction Failed", message: "Could not identify company details." });
+            }
+            setScanning(false);
+        };
+        reader.readAsDataURL(file);
+    } catch (error) {
+        console.error(error);
+        setScanning(false);
+        setErrorModal({ show: true, title: "Error", message: "Failed to process the document." });
+    }
+    if (companyDocInputRef.current) companyDocInputRef.current.value = '';
+  };
+
+  // 2. Receipt Scan (Main Voucher Data)
+  const handleReceiptScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErrorModal({ show: false, message: '' }); 
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+    if (!validTypes.includes(file.type)) {
+        setErrorModal({ show: true, title: "Unsupported File", message: "Unsupported file type. Please upload a JPEG, PNG, or WebP image." });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+    }
+
     const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
         setErrorModal({ show: true, title: "File Too Large", message: "File size too large. Please upload an image smaller than 10MB." });
-        // Clear inputs
         if (fileInputRef.current) fileInputRef.current.value = '';
-        if (companyDocInputRef.current) companyDocInputRef.current.value = '';
         return;
     }
 
@@ -326,48 +418,29 @@ export const VoucherGenerator: React.FC = () => {
     reader.onloadend = async () => {
         try {
             const base64String = (reader.result as string).split(',')[1];
-            // Pass the selected language code for context
             const data = await extractReceiptData(base64String, ocrLanguage);
             
             if (!data || Object.keys(data).length === 0) {
-                // If service returns empty, treat as extraction failure
                 throw new Error("EMPTY_DATA");
             }
 
-            // Store extracted data for confirmation
             setExtractedData(data);
+            // Trigger confirmation modal
             setShowOCRConfirm(true);
             
         } catch (error: any) {
             console.error(error);
-            
             let message = "An error occurred while scanning the receipt.";
             let title = "Scan Failed";
             const errStr = error.toString().toLowerCase();
             const errMsg = (error.message || "").toLowerCase();
 
-            // Refined Error Categorization
             if (errMsg.includes("parsing_failed") || errMsg === "empty_data") {
                 title = "Image Unreadable";
-                message = "The image might be too blurry, dark, or lacks clear text. Please try again with a clearer photo or a better angle.";
-            } else if (errMsg.includes("no_response_text") || errStr.includes("safety")) {
-                title = "Processing Error";
-                message = "The AI could not process this image content. It may contain unrecognized elements or be flagged by safety filters.";
-            } else if (errMsg.includes("api_key") || errStr.includes("403") || errStr.includes("401")) {
+                message = "The image might be too blurry, dark, or lacks clear text. Please try again with a clearer photo.";
+            } else if (errMsg.includes("api_key") || errStr.includes("403")) {
                 title = "API Connection Error";
-                message = "Authorization failed. Please check your API Key settings and internet connection.";
-            } else if (errStr.includes("failed to fetch") || errStr.includes("network")) {
-                title = "Network Error";
-                message = "We couldn't reach the server. Please check your internet connection.";
-            } else if (errStr.includes("503") || errStr.includes("overloaded")) {
-                title = "Service Unavailable";
-                message = "The AI service is currently experiencing high traffic. Please try again in a few moments.";
-            } else if (errStr.includes("400")) {
-                title = "Invalid Image Format";
-                message = "The image file seems corrupted or is in a format not fully supported by the AI model.";
-            } else if (errStr.includes("quota")) {
-                 title = "Quota Exceeded";
-                 message = "You have exceeded your API usage quota. Please check your plan limits.";
+                message = "Authorization failed. Please check your API Key settings.";
             }
 
             setErrorModal({ show: true, message, title });
@@ -376,13 +449,11 @@ export const VoucherGenerator: React.FC = () => {
         }
     };
     reader.onerror = () => {
-        setErrorModal({ show: true, title: "Read Error", message: "Failed to read the file from your device. Please try again." });
+        setErrorModal({ show: true, title: "Read Error", message: "Failed to read the file." });
         setScanning(false);
     };
     reader.readAsDataURL(file);
-    // Reset inputs
     if (fileInputRef.current) fileInputRef.current.value = '';
-    if (companyDocInputRef.current) companyDocInputRef.current.value = '';
   };
 
   // Batch Scan Logic
@@ -399,11 +470,7 @@ export const VoucherGenerator: React.FC = () => {
 
       setBatchQueue(prev => [...prev, ...newItems]);
       setShowBatchModal(true);
-      
-      // Reset input
       if (batchInputRef.current) batchInputRef.current.value = '';
-      
-      // Trigger processing
       processBatchQueue([...batchQueue, ...newItems]);
   };
 
@@ -412,43 +479,28 @@ export const VoucherGenerator: React.FC = () => {
       setIsBatchProcessing(true);
 
       const pendingItems = queue.filter(item => item.status === 'pending');
-      
-      // Process chunks of 3 to avoid overwhelming browser/api
       const CHUNK_SIZE = 3;
       for (let i = 0; i < pendingItems.length; i += CHUNK_SIZE) {
           const chunk = pendingItems.slice(i, i + CHUNK_SIZE);
-          
           await Promise.all(chunk.map(async (item) => {
-              // Update status to processing
               setBatchQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'processing' } : q));
-
               try {
-                  // Read file
                   const base64String = await new Promise<string>((resolve, reject) => {
                       const reader = new FileReader();
-                      reader.onload = () => {
-                         const result = reader.result as string;
-                         resolve(result.split(',')[1]);
-                      };
+                      reader.onload = () => resolve((reader.result as string).split(',')[1]);
                       reader.onerror = reject;
                       reader.readAsDataURL(item.file);
                   });
 
-                  // Call API
                   const data = await extractReceiptData(base64String, ocrLanguage);
-                  
                   if (!data || Object.keys(data).length === 0) throw new Error("Empty Data");
-
-                  // Update status to completed
                   setBatchQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'completed', data } : q));
 
               } catch (err: any) {
-                  console.error(`Batch processing failed for ${item.id}`, err);
                   setBatchQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'failed', error: err.message || "Failed" } : q));
               }
           }));
       }
-
       setIsBatchProcessing(false);
   };
 
@@ -473,46 +525,25 @@ export const VoucherGenerator: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     setCompanyLogo(null);
-    if (logoInputRef.current) {
-        logoInputRef.current.value = '';
-    }
+    if (logoInputRef.current) logoInputRef.current.value = '';
   };
 
   const applyOCRData = (overrideData?: any) => {
-    // If specific data is passed (e.g. from Batch), use it. Otherwise use the single-scan extractedData.
     const sourceData = overrideData || extractedData;
-
     if (!sourceData) return;
 
-    // We track which fields are auto-filled to allow styling
     const newAutoFilled = new Set<string>(autoFilledFields);
-
-    /**
-     * Helper: Determine if we should update a field based on strict user constraints.
-     * Rule 1: Always update if current value is empty.
-     * Rule 2: Always update if current value matches the placeholder.
-     * Rule 3: Always update if the field is currently marked as auto-filled (not user touched).
-     * Rule 4: If user has typed anything (and it's not the placeholder), PROTECT it.
-     */
-    const shouldUpdate = (currentVal: string, fieldKey?: string, placeholder?: string) => {
-        // Rule 3: If strictly marked as auto-filled, we can overwrite it (it's not user-entered)
-        if (fieldKey && autoFilledFields.has(fieldKey)) return true;
-
-        const val = (currentVal || '').trim();
-        const ph = (placeholder || '').trim();
-
-        // Rule 1: If currently empty, overwrite.
-        if (val.length === 0) return true;
-        
-        // Rule 2: If matches placeholder (treat as empty/default state). Case-insensitive check.
-        if (ph.length > 0 && val.toLowerCase() === ph.toLowerCase()) return true;
-        
-        // Default: Do NOT overwrite (User entered data)
-        return false;
-    };
 
     const applyIfEligible = (currentValue: string, newValue: any, fieldKey: string, setter: (val: any) => void, placeholder?: string) => {
         if (newValue && shouldUpdate(currentValue, fieldKey, placeholder)) {
+            setter(newValue);
+            newAutoFilled.add(fieldKey);
+        }
+    };
+    
+    // Strict application for Company fields (Do not overwrite if already set, even by auto-fill)
+    const applyCompanyField = (currentValue: string, newValue: any, fieldKey: string, setter: (val: any) => void, placeholder?: string) => {
+        if (newValue && shouldUpdateCompanyFromReceipt(currentValue, placeholder)) {
             setter(newValue);
             newAutoFilled.add(fieldKey);
         }
@@ -524,10 +555,6 @@ export const VoucherGenerator: React.FC = () => {
         sourceData.companyName.toLowerCase().includes(sourceData.payeeName.toLowerCase())
     );
 
-    if (isCompanySameAsPayee) {
-        console.warn("OCR Warning: Extracted Company Name is identical to Payee Name. Skipping Company Auto-fill.");
-    }
-
     // Pre-fill Payee
     applyIfEligible(payee, sourceData.payeeName, 'payee', setPayee, PLACEHOLDERS.payee);
     applyIfEligible(payeeIc, sourceData.payeeId, 'payeeIc', setPayeeIc, PLACEHOLDERS.payeeIc);
@@ -538,7 +565,6 @@ export const VoucherGenerator: React.FC = () => {
             setVoucherDate(sourceData.date);
             newAutoFilled.add('voucherDate');
         }
-        
         if (shouldUpdate(originalDate, 'originalDate')) {
             setOriginalDate(sourceData.date); 
             newAutoFilled.add('originalDate');
@@ -546,16 +572,14 @@ export const VoucherGenerator: React.FC = () => {
     }
     
     // Pre-fill Company - Only if it looks valid and distinct from Payee
+    // IMPORTANT: Uses strict applyCompanyField to avoid overwriting Letterhead scans
     if (!isCompanySameAsPayee) {
-        // Essential Company Info
-        applyIfEligible(companyName, sourceData.companyName, 'companyName', setCompanyName, PLACEHOLDERS.companyName);
-        applyIfEligible(companyRegNo, sourceData.companyRegNo, 'companyRegNo', setCompanyRegNo, PLACEHOLDERS.companyRegNo);
-        applyIfEligible(companyAddress, sourceData.companyAddress, 'companyAddress', setCompanyAddress, PLACEHOLDERS.companyAddress);
-
-        // Contact Information
-        applyIfEligible(companyTel, sourceData.companyTel, 'companyTel', setCompanyTel, PLACEHOLDERS.companyTel);
-        applyIfEligible(companyEmail, sourceData.companyEmail, 'companyEmail', setCompanyEmail, PLACEHOLDERS.companyEmail);
-        applyIfEligible(companyFax, sourceData.companyFax, 'companyFax', setCompanyFax, PLACEHOLDERS.companyFax);
+        applyCompanyField(companyName, sourceData.companyName, 'companyName', setCompanyName, PLACEHOLDERS.companyName);
+        applyCompanyField(companyRegNo, sourceData.companyRegNo, 'companyRegNo', setCompanyRegNo, PLACEHOLDERS.companyRegNo);
+        applyCompanyField(companyAddress, sourceData.companyAddress, 'companyAddress', setCompanyAddress, PLACEHOLDERS.companyAddress);
+        applyCompanyField(companyTel, sourceData.companyTel, 'companyTel', setCompanyTel, PLACEHOLDERS.companyTel);
+        applyCompanyField(companyEmail, sourceData.companyEmail, 'companyEmail', setCompanyEmail, PLACEHOLDERS.companyEmail);
+        applyCompanyField(companyFax, sourceData.companyFax, 'companyFax', setCompanyFax, PLACEHOLDERS.companyFax);
     }
 
     // Intelligent Item & Amount Handling
@@ -572,18 +596,12 @@ export const VoucherGenerator: React.FC = () => {
         else if (items.length === 1) {
             const item = items[0];
             const amountKey = `item-${item.id}-amount`;
-            
-            // Check if description is effectively empty
             const isDescEmpty = !item.description || item.description === PLACEHOLDERS.description || item.description.trim() === '';
-
-            // Check if Amount is editable (only if 0 or previously autofilled)
             const isAmountEditable = Number(item.amount) === 0 || autoFilledFields.has(amountKey);
 
             if (isAmountEditable) {
                  const updatedItem = { ...item, amount: sourceData.totalAmount };
                  newAutoFilled.add(amountKey);
-                 
-                 // Only add default description if completely empty
                  if (isDescEmpty) {
                      updatedItem.description = 'Receipt Import';
                  }
@@ -592,32 +610,23 @@ export const VoucherGenerator: React.FC = () => {
         }
     }
 
-    // Attempt to map Tax Category to dropdown
     if (sourceData.taxCategory) {
         const matchedCat = categories.find(c => 
             c.toLowerCase().includes(sourceData.taxCategory.toLowerCase()) || 
             sourceData.taxCategory.toLowerCase().includes(c.toLowerCase())
         );
-        
         if (matchedCat) {
-             // Treat the first category (Default) as a placeholder effectively to allow smart switching
              applyIfEligible(category, matchedCat, 'category', setCategory, categories[0]);
         }
-
-        // Also populate specific Tax Category field
         applyIfEligible(taxCategory, sourceData.taxCategory, 'taxCategory', setTaxCategory, PLACEHOLDERS.taxCategory);
     }
 
-    // Map Tax Reason or Description
     if (sourceData.taxReason) {
          applyIfEligible(description, sourceData.taxReason, 'description', setDescription, PLACEHOLDERS.description);
     }
 
-    // --- LHDN Tax Compliance Fields ---
     if (sourceData.taxDeductible !== undefined) {
-        // Logic: Overwrite if current value is default (false) OR previously auto-filled
         const canOverwriteDeductible = !isTaxDeductible || autoFilledFields.has('isTaxDeductible');
-        
         if (canOverwriteDeductible) {
             setIsTaxDeductible(sourceData.taxDeductible);
             newAutoFilled.add('isTaxDeductible');
@@ -634,7 +643,6 @@ export const VoucherGenerator: React.FC = () => {
     }
 
     setAutoFilledFields(newAutoFilled);
-    // If it was a single scan (no override), close that modal
     if (!overrideData) {
         setShowOCRConfirm(false);
         setExtractedData(null);
@@ -651,57 +659,36 @@ export const VoucherGenerator: React.FC = () => {
 
   const handleSaveClick = () => {
     const errors: string[] = [];
-
-    // LHDN Compliance: Issuer Details
     if (!companyName.trim()) errors.push("Company Name is required.");
     if (!companyRegNo.trim()) errors.push("Company Registration No is required for LHDN audit trails.");
-
-    // LHDN Compliance: Payee Details
     if (!payee.trim()) errors.push("Payee Name is required.");
-    
-    // Basic Fields
     if (!voucherDate) errors.push("Voucher Date is required.");
-
-    // Line Items Validation
     if (items.length === 0) {
         errors.push("At least one item is required.");
     } else {
         const currentTotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
         if (currentTotal <= 0) errors.push("Total Amount must be greater than zero.");
     }
-
     if (errors.length > 0) {
         alert("Compliance Validation Failed (LHDN):\n\n- " + errors.join("\n- "));
         return;
     }
-
     setShowConfirmDialog(true);
   };
 
-  // Generate PDF Logic (A4 LHDN Standard)
   const generatePDF = (mode: 'download' | 'preview' = 'download') => {
     try {
-        const doc = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-        });
-
-        // A4 Dimensions: 210 x 297 mm
-        // Margins: 20mm
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
         const leftM = 20;
         const rightM = 190;
-        const width = 170; // 210 - 20 - 20
-        
-        // --- 1. Letterhead Section (q1 - q5) ---
+        const width = 170;
         let startY = 15;
 
-        // Q1: Company Logo (Top Left)
         if (companyLogo) {
             try {
                 const imgProps = doc.getImageProperties(companyLogo);
                 const ratio = imgProps.width / imgProps.height;
-                const h = 25; // Fixed height
+                const h = 25; 
                 const w = h * ratio;
                 doc.addImage(companyLogo, imgProps.fileType, leftM, startY, w, h);
             } catch (e) {
@@ -709,55 +696,37 @@ export const VoucherGenerator: React.FC = () => {
             }
         }
 
-        // Q2: Company Name (Right of Logo, or Left if no logo)
-        const textX = companyLogo ? leftM + 30 : leftM; // 25mm for logo + 5mm gap
-        doc.setTextColor(0, 0, 0); // Black
-        
+        const textX = companyLogo ? leftM + 30 : leftM;
+        doc.setTextColor(0, 0, 0);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(16);
         doc.text(companyName.toUpperCase() || "COMPANY NAME", textX, startY + 6);
         
-        // Q3: Registration No (1 space below Q2)
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         doc.text(`(Reg No: ${companyRegNo || 'Pending'})`, textX, startY + 11);
-
-        // Q4: Address (Below Q3)
-        // Positioned 5mm below Reg No line
-        doc.setFontSize(9);
         const splitAddress = doc.splitTextToSize(companyAddress || "", 100);
         doc.text(splitAddress, textX, startY + 16);
-        
         const addressHeight = splitAddress.length * 4; 
-        
-        // Q5: Contact Info (Below Q4)
-        // Positioned below the variable height address
         let contactY = startY + 16 + addressHeight; 
         const contactParts = [];
         if (companyTel) contactParts.push(`Tel: ${companyTel}`);
         if (companyFax) contactParts.push(`Fax: ${companyFax}`);
         if (companyEmail) contactParts.push(`Email: ${companyEmail}`);
-        
         if (contactParts.length > 0) {
             doc.text(contactParts.join(" | "), textX, contactY);
         }
 
-        // Line Separator
         const headerEnd = Math.max(startY + 25, contactY + 5);
         doc.setLineWidth(0.5);
         doc.line(leftM, headerEnd, rightM, headerEnd);
 
-        // --- 2. Title & Voucher No ---
         let y = headerEnd + 15;
-        
         doc.setFont("helvetica", "bold");
         doc.setFontSize(18);
-        doc.text("PAYMENT VOUCHER", 105, y, { align: 'center' }); // Centered
-        
+        doc.text("PAYMENT VOUCHER", 105, y, { align: 'center' });
         y += 10;
 
-        // Voucher Meta Table Box
-        // Left Side: Payee
         doc.setFontSize(10);
         doc.text("Pay To:", leftM, y);
         doc.setFont("helvetica", "normal");
@@ -768,98 +737,73 @@ export const VoucherGenerator: React.FC = () => {
         doc.setFont("helvetica", "normal");
         doc.text(payeeIc || "__________________", leftM + 20, y + 6);
 
-        // Right Side: Voucher Details (Boxed usually)
         const boxX = 130;
         const boxY = y - 5;
         const boxW = 60;
         const boxH = 18;
-        
         doc.rect(boxX, boxY, boxW, boxH);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
         doc.text("Voucher No:", boxX + 2, boxY + 5);
         doc.text("Date:", boxX + 2, boxY + 12);
-        
         doc.setFont("helvetica", "normal");
         doc.text(voucherNo || "PV-XXXX", boxX + 25, boxY + 5);
         doc.text(voucherDate || "DD/MM/YYYY", boxX + 25, boxY + 12);
 
-        // --- 3. Items Table ---
         y += 20;
-        
-        // Table Header
-        const col1 = leftM;       // No.
-        const col2 = leftM + 15;  // Description
-        const col3 = rightM - 35; // Amount
+        const col1 = leftM;
+        const col2 = leftM + 15;
+        const col3 = rightM - 35;
         
         doc.setFillColor(230, 230, 230);
-        doc.rect(leftM, y, width, 8, 'F'); // Header bg
-        doc.rect(leftM, y, width, 8, 'S'); // Header border
-        
+        doc.rect(leftM, y, width, 8, 'F');
+        doc.rect(leftM, y, width, 8, 'S');
         doc.setFont("helvetica", "bold");
         doc.text("No.", col1 + 2, y + 5.5);
         doc.text("Description", col2 + 2, y + 5.5);
         doc.text("Amount (RM)", rightM - 2, y + 5.5, { align: "right" });
-        
         y += 8;
         
-        // Items
         doc.setFont("helvetica", "normal");
         let itemY = y;
-        
         items.forEach((item, i) => {
             const desc = item.description || "Item description";
             const splitDesc = doc.splitTextToSize(desc, 120);
             const rowHeight = Math.max(7, splitDesc.length * 5);
-            
-            // Draw row borders (optional, simpler to just list)
             doc.text(`${i+1}`, col1 + 2, itemY + 5);
             doc.text(splitDesc, col2 + 2, itemY + 5);
             doc.text(Number(item.amount).toFixed(2), rightM - 2, itemY + 5, { align: "right" });
-            
             itemY += rowHeight;
         });
 
-        // Fill to minimum height if needed
         if (itemY < y + 50) itemY = y + 50;
-        
-        // Close table Box
-        doc.rect(leftM, y, width, itemY - y); // Outer border for items
-        
-        // --- 4. Totals ---
+        doc.rect(leftM, y, width, itemY - y);
         y = itemY;
-        doc.rect(leftM, y, width, 10); // Total box
-        
+        doc.rect(leftM, y, width, 10);
         doc.setFont("helvetica", "bold");
         doc.text("TOTAL", 140, y + 6.5);
         doc.text(total.toFixed(2), rightM - 2, y + 6.5, { align: "right" });
-        
         doc.setFontSize(9);
         doc.setFont("helvetica", "italic");
         doc.text(`Ringgit Malaysia: ${toWords(total)}`, leftM + 2, y + 6.5);
 
-        // --- 5. Payment Details (Cheque/Cash/Bank) - Optional usually but good for standard ---
         y += 15;
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         doc.text("Payment Mode:  [  ] Cash    [  ] Cheque    [  ] Online Transfer", leftM, y);
         doc.text("Bank/Cheque No: __________________________", leftM + 90, y);
 
-        // --- 6. Signatures (LHDN Standard Requirement) ---
         y += 20;
         const sigY = y + 25;
         const sigW = 50;
-        
         doc.setLineWidth(0.2);
         
-        // Prepared By
         doc.line(leftM, sigY, leftM + sigW, sigY);
         doc.setFont("helvetica", "bold");
         doc.text("Prepared By", leftM, sigY + 5);
         doc.setFont("helvetica", "normal");
         doc.text(preparedBy || "(Name)", leftM, sigY + 10);
         
-        // Approved By
         const centerSigX = leftM + 60;
         doc.line(centerSigX, sigY, centerSigX + sigW, sigY);
         doc.setFont("helvetica", "bold");
@@ -867,7 +811,6 @@ export const VoucherGenerator: React.FC = () => {
         doc.setFont("helvetica", "normal");
         doc.text(approvedBy || "(Name)", centerSigX, sigY + 10);
         
-        // Received By
         const rightSigX = rightM - sigW;
         doc.line(rightSigX, sigY, rightSigX + sigW, sigY);
         doc.setFont("helvetica", "bold");
@@ -875,7 +818,6 @@ export const VoucherGenerator: React.FC = () => {
         doc.setFont("helvetica", "normal");
         doc.text("(Signature & Chop)", rightSigX, sigY + 10);
         
-        // Footer
         doc.setFontSize(7);
         doc.setTextColor(150);
         doc.text("Computer Generated Voucher - LHDN Compliant Format", 105, 290, { align: "center" });
@@ -963,7 +905,6 @@ export const VoucherGenerator: React.FC = () => {
   const executeSaveVoucher = async (status: 'DRAFT' | 'COMPLETED' = 'COMPLETED') => {
     setShowConfirmDialog(false);
     setSaving(true);
-    // Mock save logic for demo
     await new Promise(resolve => setTimeout(resolve, 1000));
     setSaving(false);
     alert("Voucher Saved (Mock)!");
@@ -980,8 +921,8 @@ export const VoucherGenerator: React.FC = () => {
         </div>
         
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full lg:w-auto">
-             {/* Language Selector for OCR */}
-             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200/50 shadow-sm w-full sm:w-auto min-w-[140px] h-[42px]">
+             {/* Language Selector for OCR - Updated to Neumorphism */}
+             <div className="flex items-center gap-2 bg-[#e0e5ec] px-3 py-2 rounded-xl shadow-[inset_2px_2px_5px_rgba(163,177,198,0.6),inset_-2px_-2px_5px_rgba(255,255,255,0.5)] w-full sm:w-auto min-w-[140px] h-[42px]">
                 <Languages size={16} className="text-gray-400 shrink-0" />
                 <div className="flex-1">
                     <select 
@@ -997,12 +938,13 @@ export const VoucherGenerator: React.FC = () => {
             </div>
 
             <div className="flex gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+                {/* Receipt Scan Input */}
                 <input 
                     type="file" 
                     ref={fileInputRef} 
                     className="hidden" 
                     accept="image/png, image/jpeg, image/webp" 
-                    onChange={handleScan} 
+                    onChange={handleReceiptScan} 
                 />
                 
                 {/* Batch Scan Input */}
@@ -1048,21 +990,22 @@ export const VoucherGenerator: React.FC = () => {
                         {scanning ? <Sparkles size={14} className="animate-spin" /> : <ScanLine size={14} />}
                         Auto-fill
                     </button>
+                    {/* Isolated Company Scan Input */}
                     <input 
                         type="file" 
                         ref={companyDocInputRef}
-                        onChange={handleScan}
+                        onChange={handleCompanyScan}
                         className="hidden"
                         accept="image/png, image/jpeg, image/webp"
                     />
                 </div>
 
                 <div className="space-y-4">
-                    {/* Logo Section */}
+                    {/* Logo Section - Updated to Neumorphic */}
                     <div className="flex flex-col items-center justify-center mb-6">
                          <div className="relative w-28 h-28 group">
-                            <div className={`w-full h-full rounded-2xl overflow-hidden flex items-center justify-center border-2 border-dashed transition-all ${
-                                companyLogo ? 'border-purple-200 bg-white' : 'border-gray-300 bg-gray-50/50 hover:border-purple-300'
+                            <div className={`w-full h-full rounded-2xl overflow-hidden flex items-center justify-center transition-all ${
+                                companyLogo ? 'bg-white shadow-inner' : 'bg-[#e0e5ec] shadow-[inset_6px_6px_12px_rgba(163,177,198,0.6),inset_-6px_-6px_12px_rgba(255,255,255,0.5)]'
                             }`}>
                                 {companyLogo ? (
                                     <img src={companyLogo} alt="Company Logo" className="w-full h-full object-contain p-2" />
@@ -1149,8 +1092,8 @@ export const VoucherGenerator: React.FC = () => {
                         </div>
                     </div>
                     
-                    {/* Contact Details (q5) */}
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Contact Details (Adjusted Layout: Fax below Tel) */}
+                    <div className="space-y-3">
                          <div>
                             <label className="block text-xs text-gray-500 mb-1">Tel</label>
                             <div className="relative">
@@ -1177,7 +1120,7 @@ export const VoucherGenerator: React.FC = () => {
                                 {autoFilledFields.has('companyFax') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
                             </div>
                          </div>
-                         <div className="col-span-2">
+                         <div>
                             <label className="block text-xs text-gray-500 mb-1">Email</label>
                             <div className="relative">
                                 <NeuroInput 
@@ -1799,7 +1742,7 @@ export const VoucherGenerator: React.FC = () => {
                                     <Pencil size={10} /> Editable
                                 </span>
                                 <button 
-                                    onClick={() => setShowOCRHelp(true)}
+                                    onClick={(e) => { e.preventDefault(); setShowOCRHelp(true); }}
                                     className="flex items-center gap-1 text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
                                 >
                                     <HelpCircle size={12} /> Learn More
@@ -1964,11 +1907,11 @@ export const VoucherGenerator: React.FC = () => {
                 </div>
             </NeuroCard>
 
-             {/* Help Modal Overlay */}
+             {/* Help Modal Overlay - Updated Layout */}
              {showOCRHelp && (
-                 <div className="absolute inset-0 z-[60] flex items-center justify-center bg-white/10 backdrop-blur-sm p-4">
+                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                      <div className="absolute inset-0" onClick={() => setShowOCRHelp(false)}></div>
-                     <NeuroCard className="w-full max-w-sm relative z-20 shadow-2xl animate-in zoom-in-95 duration-200 border border-gray-200 bg-[#e0e5ec]">
+                     <NeuroCard className="w-full max-w-md relative z-20 shadow-2xl border border-gray-200 bg-[#e0e5ec]">
                          <div className="flex justify-between items-center mb-4 border-b border-gray-200/50 pb-2">
                              <h4 className="font-bold text-gray-700 flex items-center gap-2">
                                  <Info size={16} className="text-blue-500"/> Field Guide
@@ -1978,21 +1921,21 @@ export const VoucherGenerator: React.FC = () => {
                              </button>
                          </div>
                          <ul className="space-y-3 text-sm text-gray-600">
-                             <li className="flex gap-2">
-                                 <div className="min-w-[4px] bg-blue-400 rounded-full h-auto"></div>
-                                 <div><strong className="text-gray-800 block">Payee Name</strong> The merchant/shop name detected on top of the receipt.</div>
+                             <li className="flex gap-3">
+                                 <div className="w-2 h-2 bg-blue-400 rounded-full mt-1.5 shrink-0"></div>
+                                 <div><strong className="text-gray-800 block text-xs uppercase">Payee Name</strong> The merchant/shop name detected on top of the receipt.</div>
                              </li>
-                             <li className="flex gap-2">
-                                 <div className="min-w-[4px] bg-purple-400 rounded-full h-auto"></div>
-                                 <div><strong className="text-gray-800 block">Total Amount</strong> Final charge found (Total/Grand Total/Net).</div>
+                             <li className="flex gap-3">
+                                 <div className="w-2 h-2 bg-purple-400 rounded-full mt-1.5 shrink-0"></div>
+                                 <div><strong className="text-gray-800 block text-xs uppercase">Total Amount</strong> Final charge found (Total/Grand Total/Net).</div>
                              </li>
-                             <li className="flex gap-2">
-                                 <div className="min-w-[4px] bg-green-400 rounded-full h-auto"></div>
-                                 <div><strong className="text-gray-800 block">Dates</strong> Transaction dates are standardized to YYYY-MM-DD.</div>
+                             <li className="flex gap-3">
+                                 <div className="w-2 h-2 bg-green-400 rounded-full mt-1.5 shrink-0"></div>
+                                 <div><strong className="text-gray-800 block text-xs uppercase">Dates</strong> Transaction dates are standardized to YYYY-MM-DD.</div>
                              </li>
-                             <li className="flex gap-2">
-                                 <div className="min-w-[4px] bg-orange-400 rounded-full h-auto"></div>
-                                 <div><strong className="text-gray-800 block">Bill To</strong> If the receipt is an invoice, we try to capture the recipient company details.</div>
+                             <li className="flex gap-3">
+                                 <div className="w-2 h-2 bg-orange-400 rounded-full mt-1.5 shrink-0"></div>
+                                 <div><strong className="text-gray-800 block text-xs uppercase">Bill To</strong> If the receipt is an invoice, we try to capture the recipient company details.</div>
                              </li>
                          </ul>
                      </NeuroCard>

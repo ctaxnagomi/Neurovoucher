@@ -166,7 +166,6 @@ ${companyName}`;
         });
 
         const margin = 20;
-        // Adjust width based on paper size
         const pageWidth = paperSize === 'a4' ? 210 : 216; // A4: 210mm, Letter: 216mm
         const width = pageWidth - (margin * 2);
         let y = 20;
@@ -212,43 +211,42 @@ ${companyName}`;
         // Body
         doc.setFont("helvetica", "normal");
         const bodyContent = [
-            "Your Honour / Dear Director,",
-            "",
+            `Your Honour / Dear Director,`,
+            ``,
             `This letter is submitted in explanation of the missing receipts and supporting documents relating to expenses incurred during the Year of Assessment ${yearAssessment}. Our company acknowledges the importance of maintaining proper documentation for all business transactions and regrets the loss of certain receipt records.`,
-            "",
-            "CIRCUMSTANCES OF MISSING RECEIPTS:",
-            reason,
-            "",
-            "As a result, we were unable to retain complete original receipts for all business expenses incurred. However, we have maintained comprehensive bank statements and financial reconciliation records for the entire fiscal year.",
-            "",
-            "SUPPORTING DOCUMENTATION:",
-            "In lieu of original receipts, we hereby submit the following supporting documentation:",
-            "",
-            "1. Cash Vouchers (Attached)",
+            ``,
+            `CIRCUMSTANCES OF MISSING RECEIPTS:`,
+            `${reason}`,
+            ``,
+            `As a result, we were unable to retain complete original receipts for all business expenses incurred. However, we have maintained comprehensive bank statements and financial reconciliation records for the entire fiscal year.`,
+            ``,
+            `SUPPORTING DOCUMENTATION:`,
+            `In lieu of original receipts, we hereby submit the following supporting documentation:`,
+            ``,
+            `1. Cash Vouchers (Attached)`,
             `We have prepared detailed cash vouchers for all missing expense transactions during ${yearAssessment}. Each voucher has been prepared with complete details, cross-referenced with bank statements, signed by management, and numbered sequentially (${voucherStart} through ${voucherEnd}).`,
-            "",
-            "2. Bank Statements (Attached)",
+            ``,
+            `2. Bank Statements (Attached)`,
             `Complete bank statements for the Year of Assessment ${yearAssessment} are enclosed. Bank account number: ${bankAccount} with ${bankName}.`,
-            "",
-            "3. Financial Records & Bank Reconciliation",
-            "We have maintained complete financial records including General ledger entries and monthly bank reconciliation statements.",
-            "",
-            "ACCURACY AND AUTHENTICITY:",
-            "We confirm that all amounts stated in the cash vouchers match the corresponding bank transactions and that all expenses claimed are legitimate business expenses incurred in accordance with applicable Malaysian tax regulations.",
-            "",
-            "REQUEST FOR CONSIDERATION:",
+            ``,
+            `3. Financial Records & Bank Reconciliation`,
+            `We have maintained complete financial records including General ledger entries and monthly bank reconciliation statements.`,
+            ``,
+            `ACCURACY AND AUTHENTICITY:`,
+            `We confirm that all amounts stated in the cash vouchers match the corresponding bank transactions and that all expenses claimed are legitimate business expenses incurred in accordance with applicable Malaysian tax regulations.`,
+            ``,
+            `REQUEST FOR CONSIDERATION:`,
             `We respectfully request LHDN to accept the submitted cash vouchers and supporting bank statements as evidence of the missing receipts for the Year of Assessment ${yearAssessment}. Total amount: RM ${totalAmount}.`,
-            "",
-            "Thank you for your consideration of this matter.",
-            "",
-            "Yours faithfully,"
+            ``,
+            `Thank you for your consideration of this matter.`,
+            ``,
+            `Yours faithfully,`
         ];
 
         bodyContent.forEach(line => {
              const splitLine = doc.splitTextToSize(line, width);
              doc.text(splitLine, margin, y);
              y += (splitLine.length * lineHeight);
-             // Page break check simple (using ~270 for A4, Letter is ~279, so safe margin)
              const pageHeight = paperSize === 'a4' ? 297 : 279;
              if (y > (pageHeight - 20)) {
                  doc.addPage();
