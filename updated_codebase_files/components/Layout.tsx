@@ -38,7 +38,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <div className="mt-auto pt-4 border-t border-gray-300/20 space-y-4">
             <SidebarItem to="/settings" icon={Settings} label="Settings" />
             <div className="text-xs text-center text-gray-500">
-                this product are still ongoing development
+                V.0.1.0 DeckerGUI Ecosystem
             </div>
           </div>
         </NeuroCard>

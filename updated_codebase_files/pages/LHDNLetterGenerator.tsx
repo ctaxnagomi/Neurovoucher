@@ -4,6 +4,15 @@ import { generateFastSummary } from '../services/geminiService';
 import { Download, Copy, Sparkles, Printer, FileCheck, ShieldCheck, HelpCircle, ScrollText, Info, ListChecks, AlertTriangle, XCircle } from 'lucide-react';
 import { jsPDF } from "jspdf";
 
+export const CHECKLIST_ITEMS = [
+    "Original signed Explanation Letter (on Company Letterhead)",
+    "Replacement Cash Vouchers (PV) for every missing receipt",
+    "Certified True Copy of Bank Statements highlighting the transactions",
+    "Payment proofs (Cheque butts / Online transfer receipts)",
+    "General Ledger extract showing the expense entry",
+    "Director's Resolution (if amount is significant > RM 10k)"
+];
+
 export const LHDNLetterGenerator: React.FC = () => {
     // Company Details
     const [companyName, setCompanyName] = useState('Tech Solutions Malaysia Sdn. Bhd.');
@@ -174,7 +183,7 @@ ${companyName}`;
             "CIRCUMSTANCES OF MISSING RECEIPTS:",
             reason,
             "",
-            "As a result, we were unable to retain complete original receipts for all business expenses incurred. However, we have maintained comprehensive bank statements and financial reconciliation records for the entire fiscal year.",
+            "As a result, we were unable to retain complete original receipts for all business expenses incurred. However, we have maintained comprehensive bank statements and financial reconciliation records for the entire fiscal year. whatever",
             "",
             "SUPPORTING DOCUMENTATION:",
             "In lieu of original receipts, we hereby submit the following supporting documentation:",
@@ -223,15 +232,6 @@ ${companyName}`;
 
         doc.save('LHDN_Explanation_Letter.pdf');
     };
-
-    const CHECKLIST_ITEMS = [
-        "Original signed Explanation Letter (on Company Letterhead)",
-        "Replacement Cash Vouchers (PV) for every missing receipt",
-        "Certified True Copy of Bank Statements highlighting the transactions",
-        "Payment proofs (Cheque butts / Online transfer receipts)",
-        "General Ledger extract showing the expense entry",
-        "Director's Resolution (if amount is significant > RM 10k)"
-    ];
 
     return (
         <div className="space-y-6 md:space-y-8 max-w-7xl mx-auto pb-12">

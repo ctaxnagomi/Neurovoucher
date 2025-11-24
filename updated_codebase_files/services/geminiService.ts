@@ -59,12 +59,17 @@ export const generateFastSummary = async (prompt: string): Promise<string> => {
 };
 
 // --- Pro Chat (Gemini 3 Pro) ---
-export const createChatSession = () => {
+export const createChatSession = (additionalContext: string = "") => {
   const client = getClient();
+  const baseInstruction = "You are the NEURO COUNCIL, an advanced AI Financial Advisor and Agentic Assistant specializing in Malaysian LHDN cash vouchers, tax compliance, and finance workflows. \n\n" +
+  "You have access to the user's current task context and checklists. Guide them proactively.\n" +
+  "Strictly adhere to LHDN Malaysia guidelines (e.g., Public Rulings on substantiation of expense). \n" +
+  "Remind users that expenses must be wholly and exclusively incurred in the production of income. Cash vouchers require Payee Name, IC/Passport, and clear description.";
+  
   return client.chats.create({
     model: GeminiModel.CHAT_PRO,
     config: {
-      systemInstruction: "You are an expert financial advisor specializing in Malaysian LHDN cash vouchers and tax compliance. Help the user categorize expenses and fix errors. Strictly adhere to LHDN Malaysia guidelines (e.g., Public Rulings on substantiation of expense). Remind users that expenses must be wholly and exclusively incurred in the production of income. Cash vouchers require Payee Name, IC/Passport, and clear description.",
+      systemInstruction: additionalContext ? `${baseInstruction}\n\nCurrent Context/Checklist:\n${additionalContext}` : baseInstruction,
     }
   });
 };

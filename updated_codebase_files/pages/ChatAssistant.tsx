@@ -4,6 +4,7 @@ import { NeuroCard, NeuroInput, NeuroButton } from '../components/NeuroComponent
 import { createChatSession } from '../services/geminiService';
 import { Send, Bot, User, Sparkles } from 'lucide-react';
 import { ChatMessage } from '../types';
+import { CHECKLIST_ITEMS } from './LHDNLetterGenerator';
 
 export const ChatAssistant: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -17,7 +18,9 @@ export const ChatAssistant: React.FC = () => {
 
   useEffect(() => {
     if (!chatSessionRef.current) {
-        chatSessionRef.current = createChatSession();
+        // Prepare context
+        const context = `LHDN Submission Checklist:\n${CHECKLIST_ITEMS.map((item, i) => `${i+1}. ${item}`).join('\n')}\n\nUser is navigating the NeuroVoucher system.`;
+        chatSessionRef.current = createChatSession(context);
     }
   }, []);
 
@@ -70,7 +73,7 @@ export const ChatAssistant: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
-        <NeuroCard className="flex-1 flex flex-col overflow-hidden mb-6 relative" title="Gemini 3 Pro Advisor">
+        <NeuroCard className="flex-1 flex flex-col overflow-hidden mb-6 relative" title="NEURO COUNCIL (AI ADVISOR AND AGENTIC ASSISTANCE)">
             <div className="flex-1 overflow-y-auto space-y-6 pr-4 scroll-smooth pb-4">
                 {messages.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -110,7 +113,7 @@ export const ChatAssistant: React.FC = () => {
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         placeholder="Ask about LHDN rules, tax categories..."
-                        className="w-full !rounded-2xl !py-4 text-base"
+                        className="w-full !rounded-2xl !py-4 text-base !bg-white !shadow-none border border-gray-200/60 focus:!border-blue-400 focus:!ring-4 focus:!ring-blue-50 transition-all placeholder:text-gray-400"
                     />
                 </div>
                 <NeuroButton 
