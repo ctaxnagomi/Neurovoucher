@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer } from 'lucide-react';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight } from 'lucide-react';
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 import { jsPDF } from "jspdf";
@@ -26,11 +26,23 @@ const PLACEHOLDERS = {
     description: "e.g., Purchase of A4 Paper (Avoid 'Misc')",
     evidenceType: "e.g., Tax Invoice / Receipt",
     evidenceRef: "e.g., INV-2024-001",
-    lostReason: "Brief explanation for why the original receipt is missing..."
+    lostReason: "Brief explanation for why the original receipt is missing...",
+    taxCategory: "e.g., Entertainment (Restricted)",
+    taxCode: "e.g., PU(A) 400 Vol. 64",
+    taxReason: "e.g., Wholly and exclusively incurred in the production of gross income."
 };
 
-const AutoFilledIndicator = () => (
-    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-500 pointer-events-none animate-pulse z-10" title="Auto-filled by AI">
+interface BatchItem {
+    id: string;
+    file: File;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    data?: any;
+    previewUrl: string;
+    error?: string;
+}
+
+const AutoFilledIndicator = ({ className }: { className?: string }) => (
+    <div className={`absolute right-3 top-1/2 -translate-y-1/2 text-purple-500 animate-pulse z-10 pointer-events-auto cursor-help ${className}`} title="Auto-filled by AI">
         <Sparkles size={16} fill="currentColor" className="opacity-70" />
     </div>
 );
@@ -68,6 +80,13 @@ export const VoucherGenerator: React.FC = () => {
   const [evidenceType, setEvidenceType] = useState('');
   const [evidenceRef, setEvidenceRef] = useState('');
 
+  // LHDN Tax Compliance
+  const [isTaxDeductible, setIsTaxDeductible] = useState(false);
+  const [taxCategory, setTaxCategory] = useState('');
+  const [taxCode, setTaxCode] = useState('');
+  const [taxReason, setTaxReason] = useState('');
+  const [showLHDNHelp, setShowLHDNHelp] = useState(false);
+
   const [items, setItems] = useState<VoucherItem[]>([
     { id: '1', description: '', amount: 0 }
   ]);
@@ -82,6 +101,12 @@ export const VoucherGenerator: React.FC = () => {
   const [extractedData, setExtractedData] = useState<any>(null);
   const [showOCRHelp, setShowOCRHelp] = useState(false);
   const [ocrLanguage, setOcrLanguage] = useState('en');
+  const [errorModal, setErrorModal] = useState<{show: boolean, message: string}>({ show: false, message: '' });
+
+  // Batch Scan State
+  const [batchQueue, setBatchQueue] = useState<BatchItem[]>([]);
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   
   // PDF Preview State
   const [showPdfPreview, setShowPdfPreview] = useState(false);
@@ -95,6 +120,7 @@ export const VoucherGenerator: React.FC = () => {
   const dictationCleanupRef = useRef<() => void>(() => {});
 
   const fileInputRef = useRef<HTMLInputElement>(null); // For Receipt OCR
+  const batchInputRef = useRef<HTMLInputElement>(null); // For Batch OCR
   const companyDocInputRef = useRef<HTMLInputElement>(null); // For Company Doc OCR
   const logoInputRef = useRef<HTMLInputElement>(null); // For Company Logo
 
@@ -144,9 +170,20 @@ export const VoucherGenerator: React.FC = () => {
   };
 
   const updateItem = (id: string, field: keyof VoucherItem, value: any) => {
-    setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item));
-    if (field === 'amount') {
+    setItems((prevItems) => prevItems.map((item) => {
+        if (item.id === id) {
+            return { ...item, [field]: value };
+        }
+        return item;
+    }));
+    
+    // Clear auto-fill status if user modifies the amount or description
+    if (field === 'amount' || field === 'description') {
+        const key = field === 'amount' ? `item-${id}-amount` : 'description'; // Note: description in array is treated differently but for simplicity here
+        // If it's the description, we usually track the main description, but for line items we might need granular tracking.
+        // For now, let's clear the specific item tracking if present.
         handleFieldChange(`item-${id}-amount`);
+        if (field === 'description' && items.length === 1) handleFieldChange('description');
     }
   };
 
@@ -257,13 +294,14 @@ export const VoucherGenerator: React.FC = () => {
 
   // Generic handler for scanning receipts or company docs
   const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErrorModal({ show: false, message: '' }); // Reset error
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Validate File Type
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
     if (!validTypes.includes(file.type)) {
-        alert("Unsupported file type. Please upload a JPEG, PNG, or WebP image.");
+        setErrorModal({ show: true, message: "Unsupported file type. Please upload a JPEG, PNG, or WebP image." });
         // Clear inputs
         if (fileInputRef.current) fileInputRef.current.value = '';
         if (companyDocInputRef.current) companyDocInputRef.current.value = '';
@@ -273,7 +311,7 @@ export const VoucherGenerator: React.FC = () => {
     // Validate File Size (10MB limit)
     const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-        alert("File size too large. Please upload an image smaller than 10MB.");
+        setErrorModal({ show: true, message: "File size too large. Please upload an image smaller than 10MB." });
         // Clear inputs
         if (fileInputRef.current) fileInputRef.current.value = '';
         if (companyDocInputRef.current) companyDocInputRef.current.value = '';
@@ -301,36 +339,111 @@ export const VoucherGenerator: React.FC = () => {
             console.error(error);
             
             let message = "An error occurred while scanning the receipt.";
-            const errStr = error.toString();
-            const errMsg = error.message || "";
+            const errStr = error.toString().toLowerCase();
+            const errMsg = (error.message || "").toLowerCase();
 
-            if (errMsg.includes("PARSING_FAILED") || errMsg === "EMPTY_DATA") {
-                message = "Could not extract text. The image might be too blurry, low contrast, or not a valid receipt. Please try a clearer photo.";
-            } else if (errMsg.includes("NO_RESPONSE_TEXT")) {
-                message = "The AI could not generate a response. The image might contain prohibited content or is unclear.";
-            } else if (errMsg.includes("API_KEY") || errStr.includes("403")) {
+            if (errMsg.includes("parsing_failed") || errMsg === "empty_data") {
+                message = "We couldn't extract text. The image might be too blurry, low contrast, or not a valid receipt. Please ensure good lighting and try again.";
+            } else if (errMsg.includes("no_response_text") || errStr.includes("safety")) {
+                message = "The AI could not process this image. It may contain content flagged by safety filters or is unrecognizable.";
+            } else if (errMsg.includes("api_key") || errStr.includes("403") || errStr.includes("401")) {
                 message = "API Authorization failed. Please check your API Key in Settings.";
-            } else if (errStr.includes("Failed to fetch") || errStr.includes("Network")) {
+            } else if (errStr.includes("failed to fetch") || errStr.includes("network")) {
                 message = "Network connection error. Please check your internet connection and try again.";
-            } else if (errStr.includes("503") || errStr.includes("500")) {
-                message = "AI Service is currently unavailable. Please try again in a moment.";
+            } else if (errStr.includes("503") || errStr.includes("500") || errStr.includes("overloaded")) {
+                message = "AI Service is currently high in demand. Please wait a moment and try again.";
             } else if (errStr.includes("400")) {
-                message = "Invalid request. The image format might be corrupted.";
+                message = "Invalid request. The image format might be corrupted or unsupported.";
+            } else if (errStr.includes("quota")) {
+                message = "API Usage Quota exceeded. Please check your billing details or try again later.";
             }
 
-            alert(message);
+            setErrorModal({ show: true, message });
         } finally {
             setScanning(false);
         }
     };
     reader.onerror = () => {
-        alert("Failed to read the file. Please try again.");
+        setErrorModal({ show: true, message: "Failed to read the file from your device. Please try again." });
         setScanning(false);
     };
     reader.readAsDataURL(file);
     // Reset inputs
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (companyDocInputRef.current) companyDocInputRef.current.value = '';
+  };
+
+  // Batch Scan Logic
+  const handleBatchScan = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+
+      const newItems: BatchItem[] = Array.from(files).map(file => ({
+          id: Math.random().toString(36).substring(7),
+          file,
+          status: 'pending',
+          previewUrl: URL.createObjectURL(file)
+      }));
+
+      setBatchQueue(prev => [...prev, ...newItems]);
+      setShowBatchModal(true);
+      
+      // Reset input
+      if (batchInputRef.current) batchInputRef.current.value = '';
+      
+      // Trigger processing
+      processBatchQueue([...batchQueue, ...newItems]);
+  };
+
+  const processBatchQueue = async (queue: BatchItem[]) => {
+      if (isBatchProcessing) return;
+      setIsBatchProcessing(true);
+
+      const pendingItems = queue.filter(item => item.status === 'pending');
+      
+      // Process chunks of 3 to avoid overwhelming browser/api
+      const CHUNK_SIZE = 3;
+      for (let i = 0; i < pendingItems.length; i += CHUNK_SIZE) {
+          const chunk = pendingItems.slice(i, i + CHUNK_SIZE);
+          
+          await Promise.all(chunk.map(async (item) => {
+              // Update status to processing
+              setBatchQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'processing' } : q));
+
+              try {
+                  // Read file
+                  const base64String = await new Promise<string>((resolve, reject) => {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                         const result = reader.result as string;
+                         resolve(result.split(',')[1]);
+                      };
+                      reader.onerror = reject;
+                      reader.readAsDataURL(item.file);
+                  });
+
+                  // Call API
+                  const data = await extractReceiptData(base64String, ocrLanguage);
+                  
+                  if (!data || Object.keys(data).length === 0) throw new Error("Empty Data");
+
+                  // Update status to completed
+                  setBatchQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'completed', data } : q));
+
+              } catch (err: any) {
+                  console.error(`Batch processing failed for ${item.id}`, err);
+                  setBatchQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'failed', error: err.message || "Failed" } : q));
+              }
+          }));
+      }
+
+      setIsBatchProcessing(false);
+  };
+
+  const loadFromBatch = (item: BatchItem) => {
+      if (!item.data) return;
+      applyOCRData(item.data);
+      setShowBatchModal(false);
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -353,8 +466,11 @@ export const VoucherGenerator: React.FC = () => {
     }
   };
 
-  const applyOCRData = () => {
-    if (!extractedData) return;
+  const applyOCRData = (overrideData?: any) => {
+    // If specific data is passed (e.g. from Batch), use it. Otherwise use the single-scan extractedData.
+    const sourceData = overrideData || extractedData;
+
+    if (!sourceData) return;
 
     // We track which fields are auto-filled to allow styling
     const newAutoFilled = new Set<string>(autoFilledFields);
@@ -363,9 +479,8 @@ export const VoucherGenerator: React.FC = () => {
      * Helper: Determine if we should update a field based on strict user constraints.
      * Rule 1: Always update if current value is empty.
      * Rule 2: Always update if current value matches the placeholder.
-     * Rule 3: Update if previously auto-filled (only for specific fields where requested).
      */
-    const shouldUpdate = (currentVal: string, fieldKey: string, placeholder?: string, allowAutoFillOverwrite: boolean = false) => {
+    const shouldUpdate = (currentVal: string, placeholder?: string) => {
         const val = (currentVal || '').trim();
         const ph = (placeholder || '').trim();
 
@@ -373,25 +488,22 @@ export const VoucherGenerator: React.FC = () => {
         if (val.length === 0) return true;
         
         // 2. If matches placeholder (treat as empty/default state). Case-insensitive check.
-        if (ph && val.toLowerCase() === ph.toLowerCase()) return true;
-        
-        // 3. If previously auto-filled, allow update if flag is set
-        if (allowAutoFillOverwrite && autoFilledFields.has(fieldKey)) return true;
+        if (ph.length > 0 && val.toLowerCase() === ph.toLowerCase()) return true;
         
         return false;
     };
 
-    const applyIfEligible = (currentValue: string, newValue: any, fieldKey: string, setter: (val: any) => void, placeholder?: string, allowAutoFillOverwrite: boolean = false) => {
-        if (newValue && shouldUpdate(currentValue, fieldKey, placeholder, allowAutoFillOverwrite)) {
+    const applyIfEligible = (currentValue: string, newValue: any, fieldKey: string, setter: (val: any) => void, placeholder?: string) => {
+        if (newValue && shouldUpdate(currentValue, placeholder)) {
             setter(newValue);
             newAutoFilled.add(fieldKey);
         }
     };
 
     // Sanity Check: Ensure extracted Company Info (Bill To) isn't just the Payee (Merchant) repeated.
-    const isCompanySameAsPayee = extractedData.companyName && extractedData.payeeName && (
-        extractedData.companyName.toLowerCase().trim() === extractedData.payeeName.toLowerCase().trim() ||
-        extractedData.companyName.toLowerCase().includes(extractedData.payeeName.toLowerCase())
+    const isCompanySameAsPayee = sourceData.companyName && sourceData.payeeName && (
+        sourceData.companyName.toLowerCase().trim() === sourceData.payeeName.toLowerCase().trim() ||
+        sourceData.companyName.toLowerCase().includes(sourceData.payeeName.toLowerCase())
     );
 
     if (isCompanySameAsPayee) {
@@ -399,18 +511,18 @@ export const VoucherGenerator: React.FC = () => {
     }
 
     // Pre-fill Payee
-    applyIfEligible(payee, extractedData.payeeName, 'payee', setPayee, PLACEHOLDERS.payee);
-    applyIfEligible(payeeIc, extractedData.payeeId, 'payeeIc', setPayeeIc, PLACEHOLDERS.payeeIc);
+    applyIfEligible(payee, sourceData.payeeName, 'payee', setPayee, PLACEHOLDERS.payee);
+    applyIfEligible(payeeIc, sourceData.payeeId, 'payeeIc', setPayeeIc, PLACEHOLDERS.payeeIc);
     
     // Apply Date to both Voucher Date and Original Expense Date
-    if (extractedData.date) {
-        if (shouldUpdate(voucherDate, 'voucherDate')) {
-            setVoucherDate(extractedData.date);
+    if (sourceData.date) {
+        if (shouldUpdate(voucherDate)) {
+            setVoucherDate(sourceData.date);
             newAutoFilled.add('voucherDate');
         }
         
-        if (shouldUpdate(originalDate, 'originalDate')) {
-            setOriginalDate(extractedData.date); 
+        if (shouldUpdate(originalDate)) {
+            setOriginalDate(sourceData.date); 
             newAutoFilled.add('originalDate');
         }
     }
@@ -418,26 +530,24 @@ export const VoucherGenerator: React.FC = () => {
     // Pre-fill Company - Only if it looks valid and distinct from Payee
     if (!isCompanySameAsPayee) {
         // Essential Company Info
-        applyIfEligible(companyName, extractedData.companyName, 'companyName', setCompanyName, PLACEHOLDERS.companyName);
-        applyIfEligible(companyRegNo, extractedData.companyRegNo, 'companyRegNo', setCompanyRegNo, PLACEHOLDERS.companyRegNo);
-        applyIfEligible(companyAddress, extractedData.companyAddress, 'companyAddress', setCompanyAddress, PLACEHOLDERS.companyAddress);
+        applyIfEligible(companyName, sourceData.companyName, 'companyName', setCompanyName, PLACEHOLDERS.companyName);
+        applyIfEligible(companyRegNo, sourceData.companyRegNo, 'companyRegNo', setCompanyRegNo, PLACEHOLDERS.companyRegNo);
+        applyIfEligible(companyAddress, sourceData.companyAddress, 'companyAddress', setCompanyAddress, PLACEHOLDERS.companyAddress);
 
-        // Contact Information - Protected Fields (Allow overwrite if previously auto-filled)
-        // This ensures better OCR scans can improve these fields without locking them, 
-        // while still respecting manual user entry (unless empty).
-        applyIfEligible(companyTel, extractedData.companyTel, 'companyTel', setCompanyTel, PLACEHOLDERS.companyTel, true);
-        applyIfEligible(companyEmail, extractedData.companyEmail, 'companyEmail', setCompanyEmail, PLACEHOLDERS.companyEmail, true);
-        applyIfEligible(companyFax, extractedData.companyFax, 'companyFax', setCompanyFax, PLACEHOLDERS.companyFax, true);
+        // Contact Information
+        applyIfEligible(companyTel, sourceData.companyTel, 'companyTel', setCompanyTel, PLACEHOLDERS.companyTel);
+        applyIfEligible(companyEmail, sourceData.companyEmail, 'companyEmail', setCompanyEmail, PLACEHOLDERS.companyEmail);
+        applyIfEligible(companyFax, sourceData.companyFax, 'companyFax', setCompanyFax, PLACEHOLDERS.companyFax);
     }
 
     // Intelligent Item & Amount Handling
-    if (extractedData.totalAmount) {
+    if (sourceData.totalAmount) {
         if (items.length === 0) {
             const newItemId = Date.now().toString();
             setItems([{
                 id: newItemId,
                 description: 'Receipt Import',
-                amount: extractedData.totalAmount
+                amount: sourceData.totalAmount
             }]);
             newAutoFilled.add(`item-${newItemId}-amount`);
         } 
@@ -452,7 +562,7 @@ export const VoucherGenerator: React.FC = () => {
             const isAmountEditable = Number(item.amount) === 0;
 
             if (isAmountEditable) {
-                 const updatedItem = { ...item, amount: extractedData.totalAmount };
+                 const updatedItem = { ...item, amount: sourceData.totalAmount };
                  newAutoFilled.add(amountKey);
                  
                  // Only add default description if completely empty
@@ -464,9 +574,47 @@ export const VoucherGenerator: React.FC = () => {
         }
     }
 
+    // Attempt to map Tax Category to dropdown
+    if (sourceData.taxCategory) {
+        const matchedCat = categories.find(c => 
+            c.toLowerCase().includes(sourceData.taxCategory.toLowerCase()) || 
+            sourceData.taxCategory.toLowerCase().includes(c.toLowerCase())
+        );
+        
+        if (matchedCat) {
+             applyIfEligible(category, matchedCat, 'category', setCategory);
+        }
+
+        // Also populate specific Tax Category field
+        applyIfEligible(taxCategory, sourceData.taxCategory, 'taxCategory', setTaxCategory, PLACEHOLDERS.taxCategory);
+    }
+
+    // Map Tax Reason or Description
+    if (sourceData.taxReason) {
+         applyIfEligible(description, sourceData.taxReason, 'description', setDescription, PLACEHOLDERS.description);
+    }
+
+    // --- LHDN Tax Compliance Fields ---
+    if (sourceData.taxDeductible !== undefined && !isTaxDeductible) {
+        setIsTaxDeductible(sourceData.taxDeductible);
+        newAutoFilled.add('isTaxDeductible');
+    }
+
+    if (sourceData.taxCode || sourceData.taxLimit) {
+        const combinedCode = [sourceData.taxCode, sourceData.taxLimit].filter(Boolean).join(' - ');
+        applyIfEligible(taxCode, combinedCode, 'taxCode', setTaxCode, PLACEHOLDERS.taxCode);
+    }
+
+    if (sourceData.taxReason) {
+        applyIfEligible(taxReason, sourceData.taxReason, 'taxReason', setTaxReason, PLACEHOLDERS.taxReason);
+    }
+
     setAutoFilledFields(newAutoFilled);
-    setShowOCRConfirm(false);
-    setExtractedData(null);
+    // If it was a single scan (no override), close that modal
+    if (!overrideData) {
+        setShowOCRConfirm(false);
+        setExtractedData(null);
+    }
   };
 
   const handleSaveClick = () => {
@@ -762,12 +910,28 @@ export const VoucherGenerator: React.FC = () => {
                     accept="image/png, image/jpeg, image/webp" 
                     onChange={handleScan} 
                 />
+                
+                {/* Batch Scan Input */}
+                <input 
+                    type="file" 
+                    ref={batchInputRef} 
+                    className="hidden" 
+                    accept="image/png, image/jpeg, image/webp" 
+                    onChange={handleBatchScan}
+                    multiple
+                />
+
+                <NeuroButton onClick={() => batchInputRef.current?.click()} disabled={scanning || isBatchProcessing} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[140px]">
+                    <Layers size={16} className={isBatchProcessing ? "animate-pulse text-purple-500" : "text-purple-600"} />
+                    {isBatchProcessing ? 'Processing...' : 'Batch Scan'}
+                </NeuroButton>
+
                 <NeuroButton onClick={() => fileInputRef.current?.click()} disabled={scanning} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[140px]">
-                    <Upload size={16} className={scanning ? "animate-bounce text-blue-500" : "text-purple-600"} />
+                    <Upload size={16} className={scanning ? "animate-bounce text-blue-500" : "text-blue-600"} />
                     {scanning ? 'Scanning...' : 'Upload Receipt'}
                 </NeuroButton>
                 <NeuroButton onClick={handleReadAloud} disabled={playingAudio} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[130px]">
-                    <Play size={16} className={playingAudio ? "text-green-500" : "text-blue-500"} />
+                    <Play size={16} className={playingAudio ? "text-green-500" : "text-green-500"} />
                     {playingAudio ? 'Reading...' : 'Read Aloud'}
                 </NeuroButton>
             </div>
@@ -973,15 +1137,18 @@ export const VoucherGenerator: React.FC = () => {
                         <label className="block text-sm text-gray-500 mb-2 flex items-center gap-2">
                             <Tag size={14} /> Category
                         </label>
-                        <NeuroSelect 
-                            value={category} 
-                            onChange={(e) => setCategory(e.target.value)}
-                            className={`${commonInputStyle} pr-10`}
-                        >
-                            {categories.map((cat) => (
-                                <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                        </NeuroSelect>
+                        <div className="relative">
+                            <NeuroSelect 
+                                value={category} 
+                                onChange={(e) => setCategory(e.target.value)}
+                                className={`${commonInputStyle} pr-10 ${getAutoFillClass('category')}`}
+                            >
+                                {categories.map((cat) => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </NeuroSelect>
+                             {autoFilledFields.has('category') && <div className="absolute right-8 top-1/2 -translate-y-1/2 z-10"><AutoFilledIndicator /></div>}
+                        </div>
                     </div>
 
                     <div>
@@ -1054,15 +1221,87 @@ export const VoucherGenerator: React.FC = () => {
                                 </NeuroButton>
                             </div>
                         </div>
-                        <NeuroTextarea 
-                            value={description} 
-                            onChange={(e) => setDescription(e.target.value)} 
-                            placeholder={PLACEHOLDERS.description} 
-                            rows={2}
-                            className={`${commonInputStyle} resize-none`}
-                        />
+                        <div className="relative">
+                            <NeuroTextarea 
+                                value={description} 
+                                onChange={(e) => setDescription(e.target.value)} 
+                                placeholder={PLACEHOLDERS.description} 
+                                rows={2}
+                                className={`${commonInputStyle} resize-none ${getAutoFillClass('description')}`}
+                            />
+                            {autoFilledFields.has('description') && <div className="absolute right-3 top-3"><AutoFilledIndicator /></div>}
+                        </div>
                     </div>
                 </div>
+            </NeuroCard>
+
+            {/* LHDN Tax Compliance Section */}
+            <NeuroCard title="LHDN Tax Compliance" className="mt-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center justify-between p-3 bg-white border border-gray-200/60 rounded-xl shadow-sm">
+                        <label className="text-sm text-gray-700 font-medium flex items-center gap-2">
+                             <FileCheck size={18} className="text-green-600" />
+                             Tax Deductible
+                             <button 
+                                onClick={(e) => { e.preventDefault(); setShowLHDNHelp(true); }}
+                                className="text-gray-400 hover:text-blue-500 transition-colors ml-1"
+                                title="LHDN Deductibility Rules"
+                             >
+                                <HelpCircle size={15} />
+                             </button>
+                        </label>
+                        <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full cursor-pointer">
+                           <input 
+                               type="checkbox" 
+                               className="absolute w-full h-full opacity-0 cursor-pointer z-10"
+                               checked={isTaxDeductible}
+                               onChange={(e) => { setIsTaxDeductible(e.target.checked); handleFieldChange('isTaxDeductible'); }}
+                           />
+                           <div className={`w-12 h-6 rounded-full shadow-inner transition-colors duration-200 ${isTaxDeductible ? 'bg-green-500' : 'bg-gray-200'}`}></div>
+                           <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${isTaxDeductible ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                           {autoFilledFields.has('isTaxDeductible') && <div className="absolute -right-2 -top-2"><Sparkles size={12} className="text-purple-500 animate-pulse" /></div>}
+                       </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-gray-500 mb-2">Tax Category</label>
+                        <div className="relative">
+                            <NeuroInput 
+                                value={taxCategory}
+                                onChange={(e) => { setTaxCategory(e.target.value); handleFieldChange('taxCategory'); }}
+                                placeholder={PLACEHOLDERS.taxCategory}
+                                className={`${commonInputStyle} ${getAutoFillClass('taxCategory')}`}
+                            />
+                             {autoFilledFields.has('taxCategory') && <AutoFilledIndicator />}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-gray-500 mb-2">Tax Code / Limit</label>
+                        <div className="relative">
+                            <NeuroInput 
+                                value={taxCode}
+                                onChange={(e) => { setTaxCode(e.target.value); handleFieldChange('taxCode'); }}
+                                placeholder={PLACEHOLDERS.taxCode}
+                                className={`${commonInputStyle} ${getAutoFillClass('taxCode')}`}
+                            />
+                            {autoFilledFields.has('taxCode') && <AutoFilledIndicator />}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-gray-500 mb-2">Tax Reason</label>
+                        <div className="relative">
+                            <NeuroInput 
+                                value={taxReason}
+                                onChange={(e) => { setTaxReason(e.target.value); handleFieldChange('taxReason'); }}
+                                placeholder={PLACEHOLDERS.taxReason}
+                                className={`${commonInputStyle} ${getAutoFillClass('taxReason')}`}
+                            />
+                             {autoFilledFields.has('taxReason') && <AutoFilledIndicator />}
+                        </div>
+                    </div>
+                 </div>
             </NeuroCard>
         </div>
       </div>
@@ -1111,8 +1350,8 @@ export const VoucherGenerator: React.FC = () => {
                                     className={`text-right ${commonInputStyle} pr-8 ${getAutoFillClass(`item-${item.id}-amount`)}`}
                                 />
                                 {autoFilledFields.has(`item-${item.id}-amount`) && (
-                                    <div className="absolute right-3 top-8 md:top-1/2 md:-translate-y-1/2 pointer-events-none">
-                                        <Sparkles size={12} className="text-purple-500 animate-pulse" />
+                                    <div className="absolute right-3 top-8 md:top-1/2 md:-translate-y-1/2">
+                                        <AutoFilledIndicator className="static translate-y-0" />
                                     </div>
                                 )}
                             </div>
@@ -1270,6 +1509,181 @@ export const VoucherGenerator: React.FC = () => {
           </div>
       )}
 
+      {/* OCR Error Modal */}
+      {errorModal.show && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="absolute inset-0" onClick={() => setErrorModal({ ...errorModal, show: false })}></div>
+            <NeuroCard className="w-full max-w-sm relative z-10 shadow-2xl border-2 border-red-100 text-center bg-white">
+                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4 text-red-600">
+                        <AlertTriangle size={24} />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-700 mb-2">Scan Failed</h3>
+                    <p className="text-sm text-gray-500 mb-6 px-2">
+                    {errorModal.message}
+                    </p>
+                    <div className="flex gap-3 justify-center">
+                        <NeuroButton onClick={() => setErrorModal({ ...errorModal, show: false })} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium">Dismiss</NeuroButton>
+                    </div>
+            </NeuroCard>
+            </div>
+      )}
+
+      {/* LHDN Helper Modal */}
+      {showLHDNHelp && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="absolute inset-0" onClick={() => setShowLHDNHelp(false)}></div>
+            <NeuroCard className="w-full max-w-md relative z-20 shadow-2xl border border-blue-100 max-h-[85vh] overflow-y-auto bg-white">
+                <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
+                    <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                        <ShieldCheck size={18} className="text-blue-600"/> LHDN Tax Guide
+                    </h3>
+                    <button onClick={() => setShowLHDNHelp(false)} className="text-gray-400 hover:text-red-500 transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+                
+                <div className="space-y-4 text-sm text-gray-600">
+                    <p className="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs leading-relaxed">
+                        <strong>Sec 33(1) Income Tax Act 1967:</strong> Expenses must be wholly and exclusively incurred in the production of gross income to be deductible.
+                    </p>
+
+                    <div className="space-y-3">
+                        <div className="p-3 rounded-lg border border-orange-100 bg-orange-50/50">
+                            <strong className="block text-orange-800 text-xs uppercase tracking-wider mb-1">Entertainment (50% Rule)</strong>
+                            <p className="text-xs">Generally 50% restricted. <br/>
+                            <span className="italic opacity-80">Exception (100%):</span> Staff annual dinner, promotional gifts to public, entertainment related to sales of cultural events.</p>
+                        </div>
+                        <div className="p-3 rounded-lg border border-green-100 bg-green-50/50">
+                            <strong className="block text-green-800 text-xs uppercase tracking-wider mb-1">Staff Welfare</strong>
+                            <p className="text-xs">100% deductible (e.g., pantry items, medical fees). Requires proper documentation.</p>
+                        </div>
+                        <div className="p-3 rounded-lg border border-purple-100 bg-purple-50/50">
+                            <strong className="block text-purple-800 text-xs uppercase tracking-wider mb-1">Travel & Transport</strong>
+                            <p className="text-xs">Official business travel is deductible. Petrol/Toll requires receipts. Travel between home and office is <span className="text-red-500 font-bold">NOT</span> deductible.</p>
+                        </div>
+                        <div className="p-3 rounded-lg border border-red-100 bg-red-50/50">
+                            <strong className="block text-red-800 text-xs uppercase tracking-wider mb-1">Capital Expenditure (Non-Deductible)</strong>
+                            <p className="text-xs">Assets (Computers, Furniture, Renovation) are capital in nature. Claim Capital Allowances instead.</p>
+                        </div>
+                    </div>
+                    
+                     <div className="pt-2 text-center border-t border-gray-100 mt-2">
+                        <a href="https://www.hasil.gov.my/" target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center justify-center gap-1">
+                            Visit LHDN Official Portal <ExternalLink size={10} />
+                        </a>
+                    </div>
+                </div>
+            </NeuroCard>
+        </div>
+      )}
+      
+      {/* Batch Review Modal */}
+      {showBatchModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+             <div className="absolute inset-0" onClick={() => !isBatchProcessing && setShowBatchModal(false)}></div>
+             <NeuroCard className="w-full max-w-4xl h-[80vh] flex flex-col relative z-10 shadow-2xl p-0 overflow-hidden bg-white">
+                 <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+                     <div>
+                         <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2">
+                            <Layers size={18} className="text-purple-600" /> Batch Processing Queue
+                         </h3>
+                         <p className="text-xs text-gray-500">Review receipts and load them into the voucher form.</p>
+                     </div>
+                     <div className="flex gap-2">
+                        <NeuroButton 
+                            onClick={() => batchInputRef.current?.click()} 
+                            disabled={isBatchProcessing}
+                            className="text-xs !py-2 bg-white hover:bg-gray-100 text-gray-600 border border-gray-200 shadow-sm"
+                        >
+                            <Plus size={14} className="inline mr-1"/> Add More
+                        </NeuroButton>
+                        <button onClick={() => !isBatchProcessing && setShowBatchModal(false)} className="text-gray-400 hover:text-red-500 transition-colors">
+                            <X size={24} />
+                        </button>
+                     </div>
+                 </div>
+                 
+                 <div className="flex-1 overflow-y-auto p-4 bg-gray-100/50">
+                     <div className="grid gap-3">
+                         {batchQueue.map((item) => (
+                             <div key={item.id} className="bg-white rounded-xl p-3 shadow-sm border border-gray-200 flex flex-col md:flex-row gap-4 items-center">
+                                 {/* Thumbnail */}
+                                 <div className="w-full md:w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden relative border border-gray-200">
+                                     <img src={item.previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                                     {item.status === 'processing' && (
+                                         <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                             <Loader2 className="animate-spin text-white" size={20} />
+                                         </div>
+                                     )}
+                                     {item.status === 'completed' && (
+                                         <div className="absolute bottom-0 right-0 bg-green-500 p-1 rounded-tl-lg">
+                                             <CheckCircle2 size={12} className="text-white" />
+                                         </div>
+                                     )}
+                                 </div>
+                                 
+                                 {/* Info */}
+                                 <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+                                     <div className="col-span-2 md:col-span-1">
+                                         <span className="text-xs text-gray-400 block uppercase font-bold">File</span>
+                                         <span className="text-sm font-medium text-gray-700 truncate block" title={item.file.name}>{item.file.name}</span>
+                                     </div>
+                                     
+                                     {item.status === 'completed' && item.data ? (
+                                        <>
+                                            <div>
+                                                <span className="text-xs text-gray-400 block uppercase font-bold">Payee</span>
+                                                <span className="text-sm text-gray-700 truncate block">{item.data.payeeName || "-"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-gray-400 block uppercase font-bold">Amount</span>
+                                                <span className="text-sm font-bold text-gray-700 block">
+                                                    {item.data.totalAmount ? `RM ${item.data.totalAmount.toFixed(2)}` : "-"}
+                                                </span>
+                                            </div>
+                                        </>
+                                     ) : (
+                                         <div className="col-span-2 flex items-center text-gray-400 text-sm italic">
+                                            {item.status === 'processing' ? 'Extracting data...' : item.status === 'failed' ? item.error : 'Waiting...'}
+                                         </div>
+                                     )}
+                                     
+                                     <div className="col-span-2 md:col-span-1 flex items-center justify-end gap-2">
+                                         {item.status === 'completed' && (
+                                             <NeuroButton 
+                                                onClick={() => loadFromBatch(item)} 
+                                                className="!py-1.5 !px-3 text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 shadow-none border border-purple-200 flex items-center gap-1"
+                                             >
+                                                 Load <ArrowRight size={14} />
+                                             </NeuroButton>
+                                         )}
+                                          {item.status === 'failed' && (
+                                             <span className="text-xs text-red-500 font-bold px-2 py-1 bg-red-50 rounded">Failed</span>
+                                         )}
+                                     </div>
+                                 </div>
+                             </div>
+                         ))}
+                         
+                         {batchQueue.length === 0 && (
+                             <div className="text-center py-12 text-gray-400">
+                                 <Layers size={48} className="mx-auto mb-3 opacity-20" />
+                                 <p>No receipts in queue.</p>
+                             </div>
+                         )}
+                     </div>
+                 </div>
+                 
+                 <div className="p-4 border-t bg-white flex justify-between items-center text-xs text-gray-500">
+                    <span>Processed items can be loaded one by one.</span>
+                    <NeuroButton onClick={() => setShowBatchModal(false)} className="text-xs !py-2 bg-gray-100 hover:bg-gray-200 shadow-none">
+                        Close
+                    </NeuroButton>
+                 </div>
+             </NeuroCard>
+          </div>
+      )}
+
       {/* OCR Confirmation Dialog */}
       {showOCRConfirm && extractedData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -1334,12 +1748,62 @@ export const VoucherGenerator: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* Tax Deductibility Analysis */}
+                    {(extractedData.taxDeductible !== undefined || extractedData.taxCategory) && (
+                        <div className="bg-white/50 p-3 rounded-xl border border-blue-100 shadow-sm mt-3">
+                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                <ShieldCheck size={12} className="text-blue-500" /> LHDN Tax Analysis
+                            </h4>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500">Status</span>
+                                    <span className={`font-bold px-2 py-0.5 rounded-md text-xs ${
+                                        extractedData.taxDeductible 
+                                        ? 'bg-green-100 text-green-700' 
+                                        : 'bg-orange-100 text-orange-700'
+                                    }`}>
+                                        {extractedData.taxDeductible ? "Deductible" : "Non-Deductible / Restricted"}
+                                    </span>
+                                </div>
+                                {extractedData.taxCategory && (
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500">Category</span>
+                                        <span className="text-gray-700 font-medium">{extractedData.taxCategory}</span>
+                                    </div>
+                                )}
+                                {(extractedData.taxCode || extractedData.taxLimit) && (
+                                    <div className="flex flex-col bg-blue-50 p-2 rounded-lg text-xs text-blue-800">
+                                        {extractedData.taxCode && <div><strong>Code:</strong> {extractedData.taxCode}</div>}
+                                        {extractedData.taxLimit && <div><strong>Limit:</strong> {extractedData.taxLimit}</div>}
+                                    </div>
+                                )}
+                                {extractedData.taxReason && (
+                                    <p className="text-xs text-gray-500 italic mt-1 border-t border-blue-100 pt-1">
+                                        "{extractedData.taxReason}"
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     <p className="text-xs text-center text-gray-400">OCR data will only fill empty fields. Your existing entries are safe.</p>
                 </div>
                 
-                <div className="flex gap-4 justify-end">
-                    <NeuroButton onClick={() => setShowOCRConfirm(false)} className="text-sm px-6">Cancel</NeuroButton>
-                    <NeuroButton onClick={applyOCRData} className="text-sm text-purple-600 font-bold px-6 flex items-center gap-2">
+                <div className="flex gap-4 justify-end pt-4 border-t border-gray-100">
+                    <NeuroButton 
+                        onClick={() => {
+                            setShowOCRConfirm(false);
+                            setExtractedData(null);
+                        }} 
+                        className="text-sm px-6 bg-transparent hover:bg-gray-100 text-gray-500 shadow-none border border-gray-200"
+                    >
+                        Cancel
+                    </NeuroButton>
+                    <NeuroButton 
+                        onClick={() => applyOCRData()} 
+                        className="text-sm text-white bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-200 font-bold px-6 flex items-center gap-2"
+                    >
                         <CheckCircle2 size={16} /> Apply Details
                     </NeuroButton>
                 </div>

@@ -143,6 +143,11 @@ export const extractReceiptData = async (base64Image: string, language: string =
     companyTel?: string;
     companyEmail?: string;
     companyFax?: string;
+    taxDeductible?: boolean;
+    taxCategory?: string;
+    taxCode?: string;
+    taxLimit?: string;
+    taxReason?: string;
 } | null> => {
   const client = getClient();
   
@@ -171,6 +176,12 @@ export const extractReceiptData = async (base64Image: string, language: string =
             7. **Company Address**: The full address of the 'Bill To' company.
             8. **Company Contact**: Extract Phone (Tel), Email, and Fax if available in the header or footer.
 
+            **LHDN Malaysia Tax Analysis**:
+            9. **Tax Deductible**: Boolean. Is this expense likely tax deductible for a company (Sdn Bhd) under Malaysia Income Tax Act 1967?
+            10. **Tax Category**: Suggest a specific tax category (e.g., "Entertainment - 50% Restricted", "Staff Welfare - 100%", "Repair & Maintenance").
+            11. **Tax Code/Limit**: If applicable, mention the Public Ruling code or limit (e.g., "RM2000 limit for devices", "50% restriction for client entertainment").
+            12. **Tax Reason**: Brief explanation for the classification.
+
             If a field is ambiguous or missing, exclude it or return null.` 
           }
         ]
@@ -189,7 +200,12 @@ export const extractReceiptData = async (base64Image: string, language: string =
                 companyAddress: { type: Type.STRING, description: "Bill-to company address" },
                 companyTel: { type: Type.STRING, description: "Company Telephone Number" },
                 companyEmail: { type: Type.STRING, description: "Company Email Address" },
-                companyFax: { type: Type.STRING, description: "Company Fax Number" }
+                companyFax: { type: Type.STRING, description: "Company Fax Number" },
+                taxDeductible: { type: Type.BOOLEAN, description: "Is this likely tax deductible in Malaysia?" },
+                taxCategory: { type: Type.STRING, description: "LHDN tax category" },
+                taxCode: { type: Type.STRING, description: "Relevant tax code or restriction rule" },
+                taxLimit: { type: Type.STRING, description: "Claim limits if any" },
+                taxReason: { type: Type.STRING, description: "Reasoning for tax status" }
             },
             required: ["payeeName", "totalAmount"]
         }

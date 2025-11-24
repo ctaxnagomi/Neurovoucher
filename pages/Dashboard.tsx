@@ -31,7 +31,7 @@ const annualData = [
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [timeRange, setTimeRange] = useState<'Weekly' | 'Annually'>('Annually');
+  const [timeRange, setTimeRange] = useState<'Weekly' | 'Annually'>('Weekly');
   const [metric, setMetric] = useState<'amt' | 'type' | 'freq' | 'tax'>('amt');
 
   // LHDN Tax Submission Countdown (Mock: June 30th deadline)
@@ -52,43 +52,18 @@ export const Dashboard: React.FC = () => {
     navigate('/chat', { state: { initialInput: `I need help fixing this issue: "${context}". What should I do?` } });
   };
 
-  // Calculate Totals for Top Card
-  const totalAmount = currentData.reduce((sum, item) => sum + item.amt, 0);
-  const totalTaxDeductible = currentData.reduce((sum, item) => sum + item.tax, 0);
-  const taxPercentage = totalAmount > 0 ? (totalTaxDeductible / totalAmount) * 100 : 0;
-
   return (
     <div className="space-y-8">
       {/* Top Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <NeuroCard>
-          <div className="text-gray-500 text-sm font-medium">Total Expenses ({timeRange})</div>
-          <div className="text-3xl font-bold text-gray-700 mt-2">
-            RM {totalAmount.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
+          <div className="text-gray-500 text-sm font-medium">Total Expenses</div>
+          <div className="text-3xl font-bold text-gray-700 mt-2">RM 45,231.00</div>
           <div className="mt-4 flex gap-2">
              <NeuroBadge color="text-green-600">+12%</NeuroBadge>
-             <span className="text-xs text-gray-400 flex items-center">vs last period</span>
-          </div>
-          
-          {/* Tax Deductible Forecast Formula Widget */}
-          <div className="mt-4 pt-3 border-t border-gray-200/50 animate-in fade-in slide-in-from-bottom-2 duration-700">
-             <div className="flex justify-between items-center mb-1">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Tax Deductible Forecast</span>
-                <span className="text-xs font-bold text-orange-500">{taxPercentage.toFixed(1)}%</span>
-             </div>
-             <div className="text-xl font-bold text-gray-700">
-                RM {totalTaxDeductible.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-             </div>
-             <div className="w-full bg-gray-200/60 rounded-full h-1.5 mt-2 overflow-hidden">
-                <div 
-                    className="bg-orange-400 h-1.5 rounded-full transition-all duration-1000 ease-out" 
-                    style={{ width: `${taxPercentage}%` }}
-                ></div>
-             </div>
+             <span className="text-xs text-gray-400 flex items-center">vs last month</span>
           </div>
         </NeuroCard>
-
         <NeuroCard>
           <div className="text-gray-500 text-sm font-medium">Pending Vouchers</div>
           <div className="text-3xl font-bold text-gray-700 mt-2">14</div>
@@ -167,12 +142,6 @@ export const Dashboard: React.FC = () => {
                 className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${metric === 'amt' ? 'bg-blue-50 text-blue-600 shadow-inner ring-1 ring-blue-100' : 'text-gray-400 hover:bg-gray-50'}`}
             >
                 Total Amount
-            </button>
-            <button 
-                onClick={() => setMetric('tax')} 
-                className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${metric === 'tax' ? 'bg-orange-50 text-orange-600 shadow-inner ring-1 ring-orange-100' : 'text-gray-400 hover:bg-gray-50'}`}
-            >
-                Tax Deductible
             </button>
             <button 
                 onClick={() => setMetric('type')} 
