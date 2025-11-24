@@ -346,27 +346,28 @@ export const VoucherGenerator: React.FC = () => {
             const errStr = error.toString().toLowerCase();
             const errMsg = (error.message || "").toLowerCase();
 
+            // Refined Error Categorization
             if (errMsg.includes("parsing_failed") || errMsg === "empty_data") {
-                title = "Unclear Image";
-                message = "We couldn't extract any text. The image might be too blurry, dark, or not a valid receipt. Please try again with a clearer photo.";
+                title = "Image Unreadable";
+                message = "The image might be too blurry, dark, or lacks clear text. Please try again with a clearer photo or a better angle.";
             } else if (errMsg.includes("no_response_text") || errStr.includes("safety")) {
-                title = "Processing Failed";
-                message = "The AI could not process this image. It may be flagged by safety filters or contain unrecognized content.";
+                title = "Processing Error";
+                message = "The AI could not process this image content. It may contain unrecognized elements or be flagged by safety filters.";
             } else if (errMsg.includes("api_key") || errStr.includes("403") || errStr.includes("401")) {
-                title = "Authentication Error";
-                message = "API Authorization failed. Please ensure your API Key is correctly configured in Settings.";
+                title = "API Connection Error";
+                message = "Authorization failed. Please check your API Key settings and internet connection.";
             } else if (errStr.includes("failed to fetch") || errStr.includes("network")) {
-                title = "Connection Error";
+                title = "Network Error";
                 message = "We couldn't reach the server. Please check your internet connection.";
             } else if (errStr.includes("503") || errStr.includes("overloaded")) {
-                title = "Service Busy";
-                message = "The AI service is currently experiencing high traffic. Please try again in a moment.";
+                title = "Service Unavailable";
+                message = "The AI service is currently experiencing high traffic. Please try again in a few moments.";
             } else if (errStr.includes("400")) {
-                title = "Invalid Image";
-                message = "The image format seems corrupted or unsupported by the AI model.";
+                title = "Invalid Image Format";
+                message = "The image file seems corrupted or is in a format not fully supported by the AI model.";
             } else if (errStr.includes("quota")) {
                  title = "Quota Exceeded";
-                 message = "You have exceeded your API usage quota. Please check your billing details.";
+                 message = "You have exceeded your API usage quota. Please check your plan limits.";
             }
 
             setErrorModal({ show: true, message, title });
@@ -490,22 +491,28 @@ export const VoucherGenerator: React.FC = () => {
      * Helper: Determine if we should update a field based on strict user constraints.
      * Rule 1: Always update if current value is empty.
      * Rule 2: Always update if current value matches the placeholder.
+     * Rule 3: Always update if the field is currently marked as auto-filled (not user touched).
+     * Rule 4: If user has typed anything (and it's not the placeholder), PROTECT it.
      */
-    const shouldUpdate = (currentVal: string, placeholder?: string) => {
+    const shouldUpdate = (currentVal: string, fieldKey?: string, placeholder?: string) => {
+        // Rule 3: If strictly marked as auto-filled, we can overwrite it (it's not user-entered)
+        if (fieldKey && autoFilledFields.has(fieldKey)) return true;
+
         const val = (currentVal || '').trim();
         const ph = (placeholder || '').trim();
 
-        // 1. If currently empty, overwrite.
+        // Rule 1: If currently empty, overwrite.
         if (val.length === 0) return true;
         
-        // 2. If matches placeholder (treat as empty/default state). Case-insensitive check.
+        // Rule 2: If matches placeholder (treat as empty/default state). Case-insensitive check.
         if (ph.length > 0 && val.toLowerCase() === ph.toLowerCase()) return true;
         
+        // Default: Do NOT overwrite (User entered data)
         return false;
     };
 
     const applyIfEligible = (currentValue: string, newValue: any, fieldKey: string, setter: (val: any) => void, placeholder?: string) => {
-        if (newValue && shouldUpdate(currentValue, placeholder)) {
+        if (newValue && shouldUpdate(currentValue, fieldKey, placeholder)) {
             setter(newValue);
             newAutoFilled.add(fieldKey);
         }
@@ -527,12 +534,12 @@ export const VoucherGenerator: React.FC = () => {
     
     // Apply Date to both Voucher Date and Original Expense Date
     if (sourceData.date) {
-        if (shouldUpdate(voucherDate)) {
+        if (shouldUpdate(voucherDate, 'voucherDate')) {
             setVoucherDate(sourceData.date);
             newAutoFilled.add('voucherDate');
         }
         
-        if (shouldUpdate(originalDate)) {
+        if (shouldUpdate(originalDate, 'originalDate')) {
             setOriginalDate(sourceData.date); 
             newAutoFilled.add('originalDate');
         }
@@ -569,8 +576,8 @@ export const VoucherGenerator: React.FC = () => {
             // Check if description is effectively empty
             const isDescEmpty = !item.description || item.description === PLACEHOLDERS.description || item.description.trim() === '';
 
-            // Check if Amount is editable (only if 0)
-            const isAmountEditable = Number(item.amount) === 0;
+            // Check if Amount is editable (only if 0 or previously autofilled)
+            const isAmountEditable = Number(item.amount) === 0 || autoFilledFields.has(amountKey);
 
             if (isAmountEditable) {
                  const updatedItem = { ...item, amount: sourceData.totalAmount };
@@ -607,9 +614,14 @@ export const VoucherGenerator: React.FC = () => {
     }
 
     // --- LHDN Tax Compliance Fields ---
-    if (sourceData.taxDeductible !== undefined && !isTaxDeductible) {
-        setIsTaxDeductible(sourceData.taxDeductible);
-        newAutoFilled.add('isTaxDeductible');
+    if (sourceData.taxDeductible !== undefined) {
+        // Logic: Overwrite if current value is default (false) OR previously auto-filled
+        const canOverwriteDeductible = !isTaxDeductible || autoFilledFields.has('isTaxDeductible');
+        
+        if (canOverwriteDeductible) {
+            setIsTaxDeductible(sourceData.taxDeductible);
+            newAutoFilled.add('isTaxDeductible');
+        }
     }
 
     if (sourceData.taxCode || sourceData.taxLimit) {
@@ -1318,7 +1330,7 @@ export const VoucherGenerator: React.FC = () => {
             {/* LHDN Tax Compliance Section */}
             <NeuroCard title="LHDN Tax Compliance" className="mt-6">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center justify-between p-3 bg-white border border-gray-200/60 rounded-xl shadow-sm">
+                    <div className="flex items-center justify-between p-3 bg-[#e0e5ec] shadow-[inset_2px_2px_5px_rgba(163,177,198,0.6),inset_-2px_-2px_5px_rgba(255,255,255,0.5)] rounded-xl">
                         <label className="text-sm text-gray-700 font-medium flex items-center gap-2">
                              <FileCheck size={18} className="text-green-600" />
                              Tax Deductible
@@ -1599,8 +1611,8 @@ export const VoucherGenerator: React.FC = () => {
       {errorModal.show && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={() => setErrorModal({ ...errorModal, show: false })}></div>
-            <NeuroCard className="w-full max-w-sm relative z-10 shadow-2xl border-2 border-red-100 text-center bg-white">
-                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4 text-red-600">
+            <NeuroCard className="w-full max-w-sm relative z-10 shadow-2xl border-2 border-red-100 text-center bg-[#e0e5ec]">
+                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4 text-red-600 shadow-inner">
                         <AlertTriangle size={24} />
                     </div>
                     <h3 className="text-lg font-bold text-gray-700 mb-2">{errorModal.title || "Scan Failed"}</h3>
@@ -1608,7 +1620,7 @@ export const VoucherGenerator: React.FC = () => {
                     {errorModal.message}
                     </p>
                     <div className="flex gap-3 justify-center">
-                        <NeuroButton onClick={() => setErrorModal({ ...errorModal, show: false })} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6">Dismiss</NeuroButton>
+                        <NeuroButton onClick={() => setErrorModal({ ...errorModal, show: false })} className="text-sm bg-[#e0e5ec] hover:bg-gray-200 text-gray-700 font-medium px-6">Dismiss</NeuroButton>
                     </div>
             </NeuroCard>
             </div>
@@ -1667,8 +1679,8 @@ export const VoucherGenerator: React.FC = () => {
       {showBatchModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
              <div className="absolute inset-0" onClick={() => !isBatchProcessing && setShowBatchModal(false)}></div>
-             <NeuroCard className="w-full max-w-4xl h-[80vh] flex flex-col relative z-10 shadow-2xl p-0 overflow-hidden bg-white">
-                 <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+             <NeuroCard className="w-full max-w-4xl h-[80vh] flex flex-col relative z-10 shadow-2xl p-0 overflow-hidden bg-[#e0e5ec]">
+                 <div className="flex justify-between items-center p-4 border-b border-gray-300/50 bg-[#e0e5ec]">
                      <div>
                          <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2">
                             <Layers size={18} className="text-purple-600" /> Batch Processing Queue
@@ -1679,7 +1691,7 @@ export const VoucherGenerator: React.FC = () => {
                         <NeuroButton 
                             onClick={() => batchInputRef.current?.click()} 
                             disabled={isBatchProcessing}
-                            className="text-xs !py-2 bg-white hover:bg-gray-100 text-gray-600 border border-gray-200 shadow-sm"
+                            className="text-xs !py-2 bg-[#e0e5ec] hover:translate-y-[-1px] text-gray-600 shadow-[5px_5px_10px_rgba(163,177,198,0.6),-5px_-5px_10px_rgba(255,255,255,0.5)]"
                         >
                             <Plus size={14} className="inline mr-1"/> Add More
                         </NeuroButton>
@@ -1689,12 +1701,12 @@ export const VoucherGenerator: React.FC = () => {
                      </div>
                  </div>
                  
-                 <div className="flex-1 overflow-y-auto p-4 bg-gray-100/50">
+                 <div className="flex-1 overflow-y-auto p-4 bg-[#e0e5ec]">
                      <div className="grid gap-3">
                          {batchQueue.map((item) => (
-                             <div key={item.id} className="bg-white rounded-xl p-3 shadow-sm border border-gray-200 flex flex-col md:flex-row gap-4 items-center">
+                             <div key={item.id} className="bg-[#e0e5ec] rounded-xl p-3 shadow-[5px_5px_10px_rgba(163,177,198,0.6),-5px_-5px_10px_rgba(255,255,255,0.5)] flex flex-col md:flex-row gap-4 items-center">
                                  {/* Thumbnail */}
-                                 <div className="w-full md:w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden relative border border-gray-200">
+                                 <div className="w-full md:w-20 h-20 bg-[#e0e5ec] rounded-lg flex-shrink-0 overflow-hidden relative shadow-[inset_2px_2px_5px_rgba(163,177,198,0.6),inset_-2px_-2px_5px_rgba(255,255,255,0.5)]">
                                      <img src={item.previewUrl} alt="Preview" className="w-full h-full object-cover" />
                                      {item.status === 'processing' && (
                                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
@@ -1738,7 +1750,7 @@ export const VoucherGenerator: React.FC = () => {
                                          {item.status === 'completed' && (
                                              <NeuroButton 
                                                 onClick={() => loadFromBatch(item)} 
-                                                className="!py-1.5 !px-3 text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 shadow-none border border-purple-200 flex items-center gap-1"
+                                                className="!py-1.5 !px-3 text-xs bg-[#e0e5ec] text-purple-700 flex items-center gap-1"
                                              >
                                                  Load <ArrowRight size={14} />
                                              </NeuroButton>
@@ -1760,9 +1772,9 @@ export const VoucherGenerator: React.FC = () => {
                      </div>
                  </div>
                  
-                 <div className="p-4 border-t bg-white flex justify-between items-center text-xs text-gray-500">
+                 <div className="p-4 border-t border-gray-300/50 bg-[#e0e5ec] flex justify-between items-center text-xs text-gray-500">
                     <span>Processed items can be loaded one by one.</span>
-                    <NeuroButton onClick={() => setShowBatchModal(false)} className="text-xs !py-2 bg-gray-100 hover:bg-gray-200 shadow-none">
+                    <NeuroButton onClick={() => setShowBatchModal(false)} className="text-xs !py-2 bg-[#e0e5ec] hover:bg-gray-200">
                         Close
                     </NeuroButton>
                  </div>
@@ -1783,7 +1795,7 @@ export const VoucherGenerator: React.FC = () => {
                         <div>
                             <h3 className="text-xl font-bold text-gray-800 tracking-tight">Verify Extraction</h3>
                             <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                                <span className="flex items-center gap-1 bg-white/50 px-2 py-0.5 rounded-md border border-gray-200/50">
+                                <span className="flex items-center gap-1 bg-[#e0e5ec] px-2 py-0.5 rounded-md shadow-[inset_2px_2px_5px_rgba(163,177,198,0.6),inset_-2px_-2px_5px_rgba(255,255,255,0.5)]">
                                     <Pencil size={10} /> Editable
                                 </span>
                                 <button 
@@ -1797,7 +1809,7 @@ export const VoucherGenerator: React.FC = () => {
                     </div>
                     <button 
                         onClick={() => { setShowOCRConfirm(false); setExtractedData(null); }} 
-                        className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 hover:bg-red-100 text-gray-500 hover:text-red-500 transition-colors"
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-[#e0e5ec] shadow-[5px_5px_10px_rgba(163,177,198,0.6),-5px_-5px_10px_rgba(255,255,255,0.5)] hover:text-red-500 transition-colors"
                     >
                         <X size={18} />
                     </button>
@@ -1925,7 +1937,7 @@ export const VoucherGenerator: React.FC = () => {
                             </div>
                             <div className="col-span-2">
                                 <label className="text-[10px] text-blue-400 uppercase font-bold block mb-1">Reasoning</label>
-                                <div className="text-xs text-blue-800 italic bg-white/50 p-2 rounded border border-blue-100">
+                                <div className="text-xs text-blue-800 italic bg-[#e0e5ec] shadow-[inset_2px_2px_5px_rgba(163,177,198,0.6),inset_-2px_-2px_5px_rgba(255,255,255,0.5)] p-2 rounded-lg">
                                     {extractedData.taxReason || "No specific tax reasoning provided."}
                                 </div>
                             </div>
@@ -1933,7 +1945,7 @@ export const VoucherGenerator: React.FC = () => {
                     </div>
                 </div>
                 
-                <div className="flex gap-4 justify-end pt-4 border-t border-gray-200 bg-[#e0e5ec] p-4 -mx-0 sticky bottom-0">
+                <div className="flex gap-4 justify-end pt-4 border-t border-gray-200/50 bg-[#e0e5ec] p-4 -mx-0 sticky bottom-0">
                     <NeuroButton 
                         onClick={() => {
                             setShowOCRConfirm(false);
@@ -1956,8 +1968,8 @@ export const VoucherGenerator: React.FC = () => {
              {showOCRHelp && (
                  <div className="absolute inset-0 z-[60] flex items-center justify-center bg-white/10 backdrop-blur-sm p-4">
                      <div className="absolute inset-0" onClick={() => setShowOCRHelp(false)}></div>
-                     <NeuroCard className="w-full max-w-sm relative z-20 shadow-2xl animate-in zoom-in-95 duration-200 border border-gray-200">
-                         <div className="flex justify-between items-center mb-4 border-b border-gray-200 pb-2">
+                     <NeuroCard className="w-full max-w-sm relative z-20 shadow-2xl animate-in zoom-in-95 duration-200 border border-gray-200 bg-[#e0e5ec]">
+                         <div className="flex justify-between items-center mb-4 border-b border-gray-200/50 pb-2">
                              <h4 className="font-bold text-gray-700 flex items-center gap-2">
                                  <Info size={16} className="text-blue-500"/> Field Guide
                              </h4>
@@ -1993,13 +2005,13 @@ export const VoucherGenerator: React.FC = () => {
       {showConfirmDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={() => setShowConfirmDialog(false)}></div>
-            <NeuroCard className="w-full max-w-md relative z-10 shadow-2xl border-2 border-blue-100 text-center bg-white">
-                 <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4 text-blue-600">
+            <NeuroCard className="w-full max-w-md relative z-10 shadow-2xl border-2 border-blue-100 text-center bg-[#e0e5ec]">
+                 <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4 text-blue-600 shadow-inner">
                      <AlertTriangle size={24} />
                  </div>
                  <h3 className="text-lg font-bold text-gray-700 mb-2">Confirm Voucher Details</h3>
                  
-                 <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left border border-gray-100">
+                 <div className="bg-[#e0e5ec] shadow-[inset_2px_2px_5px_rgba(163,177,198,0.6),inset_-2px_-2px_5px_rgba(255,255,255,0.5)] rounded-xl p-4 mb-6 text-left border border-gray-100/50">
                     <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
                         <div className="text-gray-500 font-medium">Payee:</div>
                         <div className="font-bold text-gray-800 text-right truncate">{payee || "-"}</div>
@@ -2020,7 +2032,7 @@ export const VoucherGenerator: React.FC = () => {
                     Please verify the summary above is correct before proceeding.
                  </p>
                  <div className="flex gap-3 justify-center">
-                     <NeuroButton onClick={() => setShowConfirmDialog(false)} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 shadow-none border border-gray-200">Back to Edit</NeuroButton>
+                     <NeuroButton onClick={() => setShowConfirmDialog(false)} className="text-sm bg-[#e0e5ec] hover:bg-gray-200 text-gray-600 shadow-none border border-gray-200">Back to Edit</NeuroButton>
                      <NeuroButton onClick={() => executeSaveVoucher('COMPLETED')} className="text-sm text-white bg-blue-600 shadow-lg shadow-blue-300/50 hover:bg-blue-700">Confirm & Save</NeuroButton>
                  </div>
             </NeuroCard>

@@ -237,7 +237,7 @@ ${companyName}`;
             "We confirm that all amounts stated in the cash vouchers match the corresponding bank transactions and that all expenses claimed are legitimate business expenses incurred in accordance with applicable Malaysian tax regulations.",
             "",
             "REQUEST FOR CONSIDERATION:",
-            `We respectfully request LHDN to accept the submitted cash vouchers and supporting bank statements as evidence of the missing receipts. Total amount: RM ${totalAmount}.`,
+            `We respectfully request LHDN to accept the submitted cash vouchers and supporting bank statements as evidence of the missing receipts for the Year of Assessment ${yearAssessment}. Total amount: RM ${totalAmount}.`,
             "",
             "Thank you for your consideration of this matter.",
             "",
@@ -334,10 +334,10 @@ ${companyName}`;
 
                             <label className="block text-xs font-bold text-gray-500 uppercase">Address</label>
                             <NeuroTextarea 
-                                rows={6} 
+                                rows={5} 
                                 value={address} 
                                 onChange={(e) => setAddress(e.target.value)} 
-                                className="resize-y" 
+                                className="!resize-y min-h-[120px]" 
                             />
                             
                             <label className="block text-xs font-bold text-gray-500 uppercase">Email</label>
@@ -369,10 +369,10 @@ ${companyName}`;
                                 </NeuroButton>
                             </label>
                             <NeuroTextarea 
-                                rows={15} 
+                                rows={12} 
                                 value={reason} 
                                 onChange={(e) => setReason(e.target.value)} 
-                                className="text-sm resize-y"
+                                className="text-sm !resize-y min-h-[300px]"
                                 placeholder="Explain why receipts are missing..."
                             />
                         </div>
@@ -488,7 +488,7 @@ ${companyName}`;
                                     <li>Prepared with complete details of the transaction</li>
                                     <li>Cross-referenced with our bank statements</li>
                                     <li>Signed and approved by appropriate management personnel</li>
-                                    <li>Numbered sequentially ({voucherStart} through {voucherEnd})</li>
+                                    <li>Numbered sequentially ({voucherStart} through ${voucherEnd})</li>
                                 </ul>
 
                                 <div className="font-bold mt-3">2. Bank Statements (Attached)</div>
@@ -594,7 +594,7 @@ ${companyName}`;
 
                         <div className="pt-4 border-t border-gray-200">
                             <h4 className="font-bold text-gray-700 text-sm mb-2">Sample Reference Text</h4>
-                            <div className="bg-gray-100 p-4 rounded-lg text-xs text-gray-500 font-mono leading-relaxed h-32 overflow-y-auto border border-gray-200">
+                            <div className="bg-[#e0e5ec] shadow-[inset_6px_6px_10px_rgba(163,177,198,0.6),inset_-6px_-6px_10px_rgba(255,255,255,0.5)] p-4 rounded-lg text-xs text-gray-500 font-mono leading-relaxed h-32 overflow-y-auto border border-gray-200/50">
                                 {`[Company Name]\n[Address]\n\n[Date]\n\nLembaga Hasil Dalam Negeri\nRE: EXPLANATION FOR MISSING RECEIPTS\n\nDear Sir/Madam,\n\nWe refer to the above matter. We regret to inform you that original receipts for the following expenses were [Reason for Loss]...\n\n(This structure is automatically generated in the preview above)`}
                             </div>
                         </div>
