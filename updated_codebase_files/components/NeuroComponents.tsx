@@ -31,7 +31,7 @@ export const NeuroButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>
 
 export const NeuroInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => (
   <input 
-    className={`${bgBase} ${textPrimary} w-full py-3 px-4 rounded-xl ${shadowInner} outline-none focus:ring-2 focus:ring-blue-400/30 transition-all placeholder-gray-400 ${props.className}`}
+    className={`${bgBase} ${textPrimary} w-full py-3 px-5 rounded-xl border border-gray-200/50 ${shadowInner} outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100/50 transition-all placeholder-gray-400/70 ${props.className}`}
     {...props}
   />
 );
@@ -39,7 +39,7 @@ export const NeuroInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> =
 export const NeuroSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) => (
   <div className="relative">
     <select 
-      className={`${bgBase} ${textPrimary} w-full py-3 px-4 rounded-xl ${shadowInner} outline-none focus:ring-2 focus:ring-blue-400/30 transition-all appearance-none cursor-pointer ${props.className}`}
+      className={`${bgBase} ${textPrimary} w-full py-3 px-5 rounded-xl border border-gray-200/50 ${shadowInner} outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100/50 transition-all appearance-none cursor-pointer ${props.className}`}
       {...props}
     >
         {props.children}
@@ -52,7 +52,7 @@ export const NeuroSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>
 
 export const NeuroTextarea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> = (props) => (
   <textarea 
-    className={`${bgBase} ${textPrimary} w-full py-3 px-4 rounded-xl ${shadowInner} outline-none focus:ring-2 focus:ring-blue-400/30 transition-all placeholder-gray-400 ${props.className}`}
+    className={`${bgBase} ${textPrimary} w-full py-3 px-5 rounded-xl border border-gray-200/50 ${shadowInner} outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100/50 transition-all placeholder-gray-400/70 ${props.className}`}
     {...props}
   />
 );

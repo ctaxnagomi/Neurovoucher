@@ -167,6 +167,8 @@ export const VoucherGenerator: React.FC = () => {
     }
   };
 
+  // Helper to switch between White (Default) and Purple (Auto-filled)
+  // This ensures we always override the default grey bgBase
   const getAutoFillClass = (field: string) => 
     autoFilledFields.has(field) ? "!bg-purple-50 ring-2 ring-purple-400/30" : "!bg-white";
 
@@ -1092,8 +1094,8 @@ export const VoucherGenerator: React.FC = () => {
                         </div>
                     </div>
                     
-                    {/* Contact Details (Consistent Spacing & Alignment) */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Contact Details - Stacked for better alignment as per request */}
+                    <div className="grid grid-cols-1 gap-4">
                          <div>
                             <label className="block text-xs text-gray-500 mb-1">Tel</label>
                             <div className="relative">
@@ -1120,7 +1122,7 @@ export const VoucherGenerator: React.FC = () => {
                                 {autoFilledFields.has('companyFax') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
                             </div>
                          </div>
-                         <div className="md:col-span-2">
+                         <div>
                             <label className="block text-xs text-gray-500 mb-1">Email</label>
                             <div className="relative">
                                 <NeuroInput 
@@ -1774,7 +1776,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.payeeName || ''} 
                                     onChange={(e) => handleExtractedDataChange('payeeName', e.target.value)}
                                     placeholder="Merchant Name"
-                                    className={`!py-2 text-sm font-semibold`}
+                                    className={`!py-2 text-sm font-semibold !bg-white`}
                                 />
                              </div>
                              <div>
@@ -1783,7 +1785,7 @@ export const VoucherGenerator: React.FC = () => {
                                     type="date"
                                     value={extractedData.date || ''} 
                                     onChange={(e) => handleExtractedDataChange('date', e.target.value)}
-                                    className={`!py-2 text-sm`}
+                                    className={`!py-2 text-sm !bg-white`}
                                 />
                              </div>
                              <div>
@@ -1793,7 +1795,7 @@ export const VoucherGenerator: React.FC = () => {
                                         type="number"
                                         value={extractedData.totalAmount || ''} 
                                         onChange={(e) => handleExtractedDataChange('totalAmount', parseFloat(e.target.value))}
-                                        className={`!py-2 text-sm pr-2 text-right font-bold text-purple-600`}
+                                        className={`!py-2 text-sm pr-2 text-right font-bold text-purple-600 !bg-white`}
                                     />
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">RM</span>
                                     {(!extractedData.totalAmount || extractedData.totalAmount === 0) && (
@@ -1820,7 +1822,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyName || ''}
                                     onChange={(e) => handleExtractedDataChange('companyName', e.target.value)}
                                     placeholder="N/A"
-                                    className={`!py-1.5 text-xs`}
+                                    className={`!py-1.5 text-xs !bg-white`}
                                 />
                             </div>
                             <div>
@@ -1829,7 +1831,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyRegNo || ''}
                                     onChange={(e) => handleExtractedDataChange('companyRegNo', e.target.value)}
                                     placeholder="N/A"
-                                    className={`!py-1.5 text-xs`}
+                                    className={`!py-1.5 text-xs !bg-white`}
                                 />
                             </div>
                             <div className="col-span-2">
@@ -1838,7 +1840,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyAddress || ''}
                                     onChange={(e) => handleExtractedDataChange('companyAddress', e.target.value)}
                                     placeholder="N/A"
-                                    className={`!py-1.5 text-xs`}
+                                    className={`!py-1.5 text-xs !bg-white`}
                                 />
                             </div>
                         </div>
@@ -1872,7 +1874,7 @@ export const VoucherGenerator: React.FC = () => {
                                 <NeuroInput 
                                     value={extractedData.taxCategory || ''}
                                     onChange={(e) => handleExtractedDataChange('taxCategory', e.target.value)}
-                                    className={`!py-1.5 text-xs`}
+                                    className={`!py-1.5 text-xs !bg-white`}
                                 />
                             </div>
                              <div>
@@ -1880,7 +1882,7 @@ export const VoucherGenerator: React.FC = () => {
                                 <NeuroInput 
                                     value={extractedData.taxCode || extractedData.taxLimit || ''}
                                     onChange={(e) => handleExtractedDataChange('taxCode', e.target.value)}
-                                    className={`!py-1.5 text-xs`}
+                                    className={`!py-1.5 text-xs !bg-white`}
                                 />
                             </div>
                             <div className="col-span-2">

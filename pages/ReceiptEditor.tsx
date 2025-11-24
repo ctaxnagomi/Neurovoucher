@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { NeuroCard, NeuroButton, NeuroInput, NeuroSelect } from '../components/NeuroComponents';
 import { editImage } from '../services/geminiService';
-import { Upload, Wand2, Download, Image as ImageIcon, Languages } from 'lucide-react';
+import { Upload, Wand2, Download, Image as ImageIcon, Languages, Zap, Activity } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../types';
 
 export const ReceiptEditor: React.FC = () => {
@@ -30,7 +30,7 @@ export const ReceiptEditor: React.FC = () => {
     // Construct Prompt
     let finalPrompt = prompt;
     if (!finalPrompt) {
-        finalPrompt = "Clean up this receipt image, improve contrast and readability.";
+        finalPrompt = "Clean up this receipt image, improve contrast and readability. Use Nano Banana model capabilities.";
     }
 
     if (enableTranslation) {
@@ -53,7 +53,13 @@ export const ReceiptEditor: React.FC = () => {
   return (
     <div className="space-y-6">
         <div className="flex justify-between items-center">
-             <h2 className="text-2xl font-bold text-gray-700">Receipt Editor</h2>
+             <div className="flex items-center gap-4">
+                <h2 className="text-2xl font-bold text-gray-700">Receipt Editor</h2>
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-green-100/50 border border-green-200 rounded-full">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span className="text-[10px] font-bold text-green-700 uppercase tracking-wide">System Online</span>
+                </div>
+             </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -141,10 +147,19 @@ export const ReceiptEditor: React.FC = () => {
                         <NeuroButton 
                             onClick={handleEdit} 
                             disabled={!image || loading}
-                            className="w-full flex items-center justify-center gap-2 text-purple-600"
+                            className="w-full flex items-center justify-center gap-2 text-purple-600 relative group overflow-hidden"
                         >
-                            <Wand2 size={18} /> {enableTranslation ? 'Generate & Translate' : 'Generate Edit'}
+                            <span className="relative z-10 flex items-center gap-2">
+                                <Wand2 size={18} /> {enableTranslation ? 'Generate & Translate' : 'Generate Edit'}
+                            </span>
+                             <div className="absolute inset-0 bg-purple-100 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                         </NeuroButton>
+                        
+                        <div className="text-center">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-500 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
+                                <Zap size={10} fill="currentColor" /> Powered by Nano Banana + OCR
+                            </span>
+                        </div>
                     </div>
                 </NeuroCard>
                 

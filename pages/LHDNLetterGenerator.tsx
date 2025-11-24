@@ -285,28 +285,34 @@ ${companyName}`;
                     <NeuroCard>
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">Company Information</h3>
-                            <div className="flex items-center gap-2">
-                                <input 
-                                    type="file" 
-                                    ref={fileInputRef} 
-                                    className="hidden" 
-                                    accept="image/*"
-                                    onChange={handleScanLetterhead} 
-                                />
-                                <NeuroButton 
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={scanning}
-                                    className="!text-xs !py-1.5 !px-3 flex items-center gap-2 text-blue-600"
-                                >
-                                    {scanning ? <Loader2 size={14} className="animate-spin" /> : <ScanLine size={14} />}
-                                    {scanning ? "Scanning..." : "Scan Letterhead"}
-                                </NeuroButton>
+                            <div className="flex items-center gap-4">
+                                <div className="relative group">
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        className="hidden" 
+                                        accept="image/*"
+                                        onChange={handleScanLetterhead} 
+                                    />
+                                    <NeuroButton 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={scanning}
+                                        className="!p-0 w-10 h-10 rounded-full flex items-center justify-center text-blue-600 shadow-[5px_5px_10px_rgba(163,177,198,0.6),-5px_-5px_10px_rgba(255,255,255,0.5)]"
+                                    >
+                                        {scanning ? <Loader2 size={18} className="animate-spin" /> : <ScanLine size={18} />}
+                                    </NeuroButton>
+                                    
+                                    {/* Glass Hotspot Tooltip */}
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-white/30 backdrop-blur-md border border-white/40 text-[10px] font-bold text-gray-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-sm z-10">
+                                        Scan Letterhead
+                                    </div>
+                                </div>
                                 
                                 <div className="flex items-center bg-[#e0e5ec] rounded-xl shadow-[inset_4px_4px_8px_rgba(163,177,198,0.6),inset_-4px_-4px_8px_rgba(255,255,255,0.5)] p-0.5">
                                     <NeuroSelect 
                                         value={paperSize} 
                                         onChange={(e) => setPaperSize(e.target.value as any)}
-                                        className="!py-1 !px-2 !text-xs !bg-transparent !border-none !shadow-none w-24 h-6 text-gray-600 font-semibold"
+                                        className="!py-1 !px-2 !text-xs !bg-transparent !border-none !shadow-none w-24 h-8 text-gray-600 font-semibold"
                                     >
                                         <option value="a4">A4</option>
                                         <option value="letter">US Letter</option>

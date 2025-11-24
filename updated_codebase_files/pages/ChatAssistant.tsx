@@ -12,6 +12,7 @@ export const ChatAssistant: React.FC = () => {
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [mode, setMode] = useState('Cloud');
   const chatSessionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
@@ -86,11 +87,29 @@ Instruction:
     <div className="h-[calc(100vh-8rem)] flex flex-col">
         <NeuroCard className="flex-1 flex flex-col overflow-hidden mb-6 relative">
             {/* Custom Header Layout */}
-            <div className="mb-4 border-b border-gray-200/50 pb-3">
-                 <div className="border border-dashed border-blue-300 rounded px-2 py-0.5 w-fit mb-2 bg-blue-50/50">
-                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">GEMINI 3 PRO ADVISOR</h4>
+            <div className="mb-4 border-b border-gray-200/50 pb-3 flex justify-between items-start">
+                 <div>
+                    <div className="border border-dashed border-blue-300 rounded px-2 py-0.5 w-fit mb-2 bg-blue-50/50">
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">GEMINI 3 PRO ADVISOR</h4>
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">NEURO COUNCIL (AI ADVISOR AND AGENTIC ASSISTANCE)</h3>
+                    <p className="text-[10px] text-red-400 font-bold mt-1 tracking-wide uppercase">
+                        Powered by Thinking, Deep Research, Nano and AIOCR Model
+                    </p>
                  </div>
-                 <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">NEURO COUNCIL (AI ADVISOR AND AGENTIC ASSISTANCE)</h3>
+                 
+                 {/* Mode Toggle */}
+                 <div className="flex bg-gray-200/50 p-1 rounded-lg">
+                    {['Cloud', 'Local', 'Offline'].map(m => (
+                        <button 
+                            key={m} 
+                            onClick={() => setMode(m)}
+                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${mode === m ? 'bg-white shadow text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            {m}
+                        </button>
+                    ))}
+                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-6 pr-4 scroll-smooth pb-4">
@@ -132,7 +151,7 @@ Instruction:
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         placeholder="Ask about LHDN rules, tax categories..."
-                        className="w-full !rounded-2xl !py-4 text-base !bg-white !shadow-none border border-gray-200/60 focus:!border-blue-400 focus:!ring-4 focus:!ring-blue-50 transition-all placeholder:text-gray-400"
+                        className="w-full !rounded-2xl !py-4 !px-8 text-base !bg-white !shadow-none border border-gray-200/60 focus:!border-blue-400 focus:!ring-4 focus:!ring-blue-50 transition-all placeholder:text-gray-400"
                     />
                 </div>
                 <NeuroButton 
