@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { NeuroButton, NeuroCard } from './NeuroComponents';
-import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2, ClipboardList, Settings, ScrollText, Radio, Monitor, MicOff, Maximize2 } from 'lucide-react';
+import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2, ClipboardList, Settings, ScrollText, Radio, Monitor, MicOff, Maximize2, Cpu } from 'lucide-react';
 import { useLiveAgent } from '../contexts/LiveAgentContext';
 
 const SidebarItem = ({ to, icon: Icon, label, extra }: { to: string; icon: any; label: string, extra?: React.ReactNode }) => (
@@ -16,10 +16,76 @@ const SidebarItem = ({ to, icon: Icon, label, extra }: { to: string; icon: any; 
   </NavLink>
 );
 
+const AIFocusOverlay = () => {
+    const [targets, setTargets] = useState<{rect: DOMRect, label: string}[]>([]);
+
+    useEffect(() => {
+        const handleHighlight = (e: CustomEvent) => {
+            const fields = e.detail.fields as string[];
+            const newTargets: {rect: DOMRect, label: string}[] = [];
+
+            fields.forEach(field => {
+                // Find element by name attribute
+                const el = document.querySelector(`[name="${field}"]`);
+                if (el) {
+                    newTargets.push({
+                        rect: el.getBoundingClientRect(),
+                        label: field
+                    });
+                }
+            });
+
+            if (newTargets.length > 0) {
+                setTargets(newTargets);
+                // Clear highlight after 3 seconds
+                setTimeout(() => setTargets([]), 3000);
+            }
+        };
+
+        window.addEventListener('neuro-ai-highlight' as any, handleHighlight as any);
+        return () => window.removeEventListener('neuro-ai-highlight' as any, handleHighlight as any);
+    }, []);
+
+    if (targets.length === 0) return null;
+
+    return (
+        <div className="fixed inset-0 pointer-events-none z-[9999] ai-focus-overlay">
+            {targets.map((t, i) => (
+                <div 
+                    key={i}
+                    style={{
+                        top: t.rect.top - 4,
+                        left: t.rect.left - 4,
+                        width: t.rect.width + 8,
+                        height: t.rect.height + 8
+                    }}
+                    className="absolute border-2 border-green-500 rounded-lg shadow-[0_0_15px_rgba(34,197,94,0.5)] transition-all duration-300 animate-pulse"
+                >
+                    <div className="absolute -top-6 left-0 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-t-md flex items-center gap-1">
+                        <Cpu size={10} /> AI WRITING
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 const FloatingAgentWidget = () => {
     const { connected, isSpeaking, disconnect } = useLiveAgent();
     const navigate = useNavigate();
     const location = useLocation();
+
+    // Handle AI Navigation Requests
+    useEffect(() => {
+        const handleNavigate = (e: CustomEvent) => {
+            const path = e.detail;
+            if (path && path.startsWith('/')) {
+                navigate(path);
+            }
+        };
+        window.addEventListener('neuro-navigate' as any, handleNavigate as any);
+        return () => window.removeEventListener('neuro-navigate' as any, handleNavigate as any);
+    }, [navigate]);
 
     // Do not show on the Live Agent page itself to avoid duplication
     if (!connected || location.pathname === '/live') return null;
@@ -124,6 +190,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       <main className="flex-1 min-w-0 relative">
         {children}
         <FloatingAgentWidget />
+        <AIFocusOverlay />
       </main>
     </div>
   );
