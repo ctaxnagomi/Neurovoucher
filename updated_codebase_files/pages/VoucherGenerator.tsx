@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect } from '../components/NeuroComponents';
+import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect, NeuroToggle } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient, extractLetterhead } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins, FileSpreadsheet, MessageSquare, ListTodo } from 'lucide-react';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins, FileSpreadsheet, MessageSquare, ListTodo, CreditCard } from 'lucide-react';
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 import { jsPDF } from "jspdf";
@@ -78,6 +78,8 @@ const PLACEHOLDERS = {
     companyFax: "e.g., +603-1234 5679",
     payee: "e.g., Ali Bin Abu",
     payeeIc: "e.g., 880101-14-XXXX (Required)",
+    payeeAddress: "e.g., No 123, Jalan 1, 50000 KL",
+    payeeEmail: "payee@example.com",
     voucherNo: "PV-YYYY-XXXX",
     description: "e.g., Purchase of A4 Paper (Avoid 'Misc')",
     evidenceType: "e.g., Tax Invoice / Receipt",
@@ -85,7 +87,9 @@ const PLACEHOLDERS = {
     lostReason: "Brief explanation for why the original receipt is missing...",
     taxCategory: "e.g., Entertainment (Restricted)",
     taxCode: "e.g., PU(A) 400 Vol. 64",
-    taxReason: "e.g., Wholly and exclusively incurred in the production of gross income."
+    taxReason: "e.g., Wholly and exclusively incurred in the production of gross income.",
+    paymentRef: "e.g., MBB-123456 or Cheque 998877",
+    bankName: "e.g., Maybank"
 };
 
 interface BatchItem {
@@ -114,11 +118,19 @@ export const VoucherGenerator: React.FC = () => {
   // Voucher / Payee Details
   const [payee, setPayee] = useState('');
   const [payeeIc, setPayeeIc] = useState('');
+  const [payeeAddress, setPayeeAddress] = useState('');
+  const [payeeEmail, setPayeeEmail] = useState('');
+  
   const [voucherDate, setVoucherDate] = useState('');
   const [voucherNo, setVoucherNo] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
+  
+  // Payment Details
+  const [paymentMethod, setPaymentMethod] = useState('Online Transfer');
+  const [bankName, setBankName] = useState('');
+  const [paymentRef, setPaymentRef] = useState('');
   
   // Company Details (Issuer/Bill-To)
   const [companyName, setCompanyName] = useState('');
@@ -199,7 +211,7 @@ export const VoucherGenerator: React.FC = () => {
     else if (companyName || companyRegNo) score += (weightPerSection / 2);
 
     // 2. Voucher Details (20%)
-    if (payee && voucherDate && (voucherNo || description)) score += weightPerSection;
+    if (payee && voucherDate && (voucherNo || description) && paymentMethod) score += weightPerSection;
     else if (payee || voucherDate) score += (weightPerSection / 2);
 
     // 3. Line Items (20%)
@@ -213,7 +225,7 @@ export const VoucherGenerator: React.FC = () => {
     else if (items.length > 0 && payee) score += (weightPerSection / 2); 
 
     setProgress(Math.min(100, Math.round(score)));
-  }, [companyName, companyRegNo, companyAddress, payee, voucherDate, voucherNo, description, items, companyLogo, lostReason, evidenceRef, evidenceType]);
+  }, [companyName, companyRegNo, companyAddress, payee, voucherDate, voucherNo, description, items, companyLogo, lostReason, evidenceRef, evidenceType, paymentMethod]);
 
 
   // Fetch Categories on Mount
@@ -228,7 +240,8 @@ export const VoucherGenerator: React.FC = () => {
             "Professional Services", 
             "Medical", 
             "Maintenance & Repairs", 
-            "Training & Development"
+            "Training & Development",
+            "Staff Welfare"
         ];
         setCategories(defaultCategories);
         setCategory(defaultCategories[0]);
@@ -362,23 +375,6 @@ export const VoucherGenerator: React.FC = () => {
     const summary = await generateFastSummary(prompt);
     setDescription(summary);
     setLoadingAI(false);
-  };
-
-  const handleAskAI = () => {
-    const voucherData = `
-    Payee: ${payee || 'N/A'}
-    IC/Reg: ${payeeIc || 'N/A'}
-    Date: ${voucherDate || 'N/A'}
-    Total: RM ${total.toFixed(2)}
-    Items: ${items.map(i => `${i.description || 'Item'} (RM${i.amount})`).join(', ')}
-    Company: ${companyName || 'N/A'}
-    `;
-    navigate('/chat', { 
-        state: { 
-            initialInput: "Please analyze this voucher for LHDN compliance.",
-            voucherContext: voucherData
-        } 
-    });
   };
 
   const toggleDictation = async () => {
@@ -730,7 +726,23 @@ export const VoucherGenerator: React.FC = () => {
         y += 6;
         doc.text(`Date: ${voucherDate}`, 140, y);
         
-        y += 15;
+        // Add Payee Address if available
+        if(payeeAddress) {
+             y += 6;
+             doc.text(`Address: ${payeeAddress}`, 20, y);
+        }
+        
+        // Add Payment Method Details
+        y += 12;
+        doc.setFont("helvetica", "bold");
+        doc.text("Payment Details:", 20, y);
+        doc.setFont("helvetica", "normal");
+        y += 5;
+        doc.text(`Method: ${paymentMethod}`, 20, y);
+        if(bankName) doc.text(`Bank: ${bankName}`, 80, y);
+        if(paymentRef) doc.text(`Ref: ${paymentRef}`, 140, y);
+        
+        y += 10;
         items.forEach((item, i) => {
             doc.text(`${i+1}. ${item.description} - RM ${Number(item.amount).toFixed(2)}`, 20, y);
             y += 6;
@@ -754,7 +766,7 @@ export const VoucherGenerator: React.FC = () => {
   
   const handleExportExcel = () => {
     try {
-        const data = { companyName, companyRegNo, companyAddress, companyTel, voucherNo, date: voucherDate, payee, payeeIc, category, items, total, preparedBy, approvedBy };
+        const data = { companyName, companyRegNo, companyAddress, companyTel, voucherNo, date: voucherDate, payee, payeeIc, category, items, total, preparedBy, approvedBy, paymentMethod, bankName, paymentRef };
         const blob = generateDetailedVoucherExcel(data);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -912,7 +924,7 @@ export const VoucherGenerator: React.FC = () => {
         </div>
 
         {/* Section 2: Voucher Details */}
-        <div className="xl:col-span-8">
+        <div className="xl:col-span-8 space-y-6">
             <NeuroCard title="Voucher Details">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div>
@@ -934,26 +946,62 @@ export const VoucherGenerator: React.FC = () => {
                             </NeuroSelect>
                         </div>
                     </div>
-                    <div>
-                        <label className="block text-sm text-gray-500 mb-2">Payee Name</label>
-                        <div className="relative">
-                            <NeuroInput name="payee" value={payee} onChange={(e) => { setPayee(e.target.value); handleFieldChange('payee'); }} placeholder={PLACEHOLDERS.payee} className={getAutoFillClass('payee')} />
-                            {autoFilledFields.has('payee') && <AutoFilledIndicator />}
+                    
+                    {/* Payee Details Group */}
+                    <div className="md:col-span-2 pt-4 border-t border-gray-200/50">
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <User size={14} /> Payee & Payment Info
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm text-gray-500 mb-2">Payee Name</label>
+                                <div className="relative">
+                                    <NeuroInput name="payee" value={payee} onChange={(e) => { setPayee(e.target.value); handleFieldChange('payee'); }} placeholder={PLACEHOLDERS.payee} className={getAutoFillClass('payee')} />
+                                    {autoFilledFields.has('payee') && <AutoFilledIndicator />}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-gray-500 mb-2">Payee IC/Reg</label>
+                                <div className="relative">
+                                    <NeuroInput name="payeeIc" value={payeeIc} onChange={(e) => { setPayeeIc(e.target.value); handleFieldChange('payeeIc'); }} placeholder={PLACEHOLDERS.payeeIc} className={getAutoFillClass('payeeIc')} />
+                                </div>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm text-gray-500 mb-2">Payee Address</label>
+                                <NeuroInput name="payeeAddress" value={payeeAddress} onChange={(e) => setPayeeAddress(e.target.value)} placeholder={PLACEHOLDERS.payeeAddress} />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-gray-500 mb-2">Payment Method</label>
+                                <NeuroSelect name="paymentMethod" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                                    <option value="Online Transfer">Online Transfer / DuitNow</option>
+                                    <option value="Cheque">Cheque</option>
+                                    <option value="Cash">Cash</option>
+                                    <option value="Credit Card">Credit Card</option>
+                                </NeuroSelect>
+                            </div>
+                             <div>
+                                <label className="block text-sm text-gray-500 mb-2">Bank Name</label>
+                                <NeuroInput name="bankName" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder={PLACEHOLDERS.bankName} disabled={paymentMethod === 'Cash'} className={paymentMethod === 'Cash' ? 'opacity-50' : ''} />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm text-gray-500 mb-2">Payment Reference / Cheque No</label>
+                                <NeuroInput name="paymentRef" value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} placeholder={PLACEHOLDERS.paymentRef} disabled={paymentMethod === 'Cash'} className={paymentMethod === 'Cash' ? 'opacity-50' : ''} />
+                            </div>
                         </div>
                     </div>
-                    <div>
-                        <label className="block text-sm text-gray-500 mb-2">Payee IC/Reg</label>
-                        <div className="relative">
-                            <NeuroInput name="payeeIc" value={payeeIc} onChange={(e) => { setPayeeIc(e.target.value); handleFieldChange('payeeIc'); }} placeholder={PLACEHOLDERS.payeeIc} className={getAutoFillClass('payeeIc')} />
+
+                    {/* Auth Details */}
+                    <div className="md:col-span-2 pt-4 border-t border-gray-200/50">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm text-gray-500 mb-2">Prepared By</label>
+                                <NeuroInput name="preparedBy" value={preparedBy} onChange={(e) => setPreparedBy(e.target.value)} placeholder="Name" />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-gray-500 mb-2">Approved By</label>
+                                <NeuroInput name="approvedBy" value={approvedBy} onChange={(e) => setApprovedBy(e.target.value)} placeholder="Name" />
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm text-gray-500 mb-2">Prepared By</label>
-                        <NeuroInput name="preparedBy" value={preparedBy} onChange={(e) => setPreparedBy(e.target.value)} placeholder="Name" />
-                    </div>
-                    <div>
-                        <label className="block text-sm text-gray-500 mb-2">Approved By</label>
-                        <NeuroInput name="approvedBy" value={approvedBy} onChange={(e) => setApprovedBy(e.target.value)} placeholder="Name" />
                     </div>
 
                     <div className="md:col-span-2">
@@ -974,14 +1022,28 @@ export const VoucherGenerator: React.FC = () => {
 
             {/* LHDN Tax Compliance Section */}
             <NeuroCard title="LHDN Tax Compliance" className="mt-6">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center justify-between p-3 bg-white shadow-inner rounded-xl border border-gray-100">
-                        <label className="text-sm text-gray-700 font-medium">Tax Deductible</label>
-                        <input type="checkbox" checked={isTaxDeductible} onChange={(e) => { setIsTaxDeductible(e.target.checked); handleFieldChange('isTaxDeductible'); }} className="w-5 h-5 text-green-600" />
-                    </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Tax Category</label>
-                        <NeuroInput name="taxCategory" value={taxCategory} onChange={(e) => { setTaxCategory(e.target.value); handleFieldChange('taxCategory'); }} placeholder={PLACEHOLDERS.taxCategory} className={getAutoFillClass('taxCategory')} />
+                        <NeuroToggle 
+                            label="Tax Deductible Expense" 
+                            checked={isTaxDeductible} 
+                            onChange={(checked) => { setIsTaxDeductible(checked); handleFieldChange('isTaxDeductible'); }}
+                            className="mb-4"
+                        />
+                        <div className="text-xs text-gray-400 px-2 leading-relaxed">
+                            <Info size={12} className="inline mr-1" />
+                            Only expenses wholly and exclusively incurred in the production of gross income are deductible under Sec 33(1) ITA 1967.
+                        </div>
+                    </div>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm text-gray-500 mb-2">Tax Category</label>
+                            <NeuroInput name="taxCategory" value={taxCategory} onChange={(e) => { setTaxCategory(e.target.value); handleFieldChange('taxCategory'); }} placeholder={PLACEHOLDERS.taxCategory} className={getAutoFillClass('taxCategory')} />
+                        </div>
+                         <div>
+                            <label className="block text-sm text-gray-500 mb-2">Tax Code / Limit</label>
+                            <NeuroInput name="taxCode" value={taxCode} onChange={(e) => { setTaxCode(e.target.value); handleFieldChange('taxCode'); }} placeholder={PLACEHOLDERS.taxCode} className={getAutoFillClass('taxCode')} />
+                        </div>
                     </div>
                  </div>
             </NeuroCard>
