@@ -20,8 +20,8 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
   const previousMouseXRef = useRef(0);
   const globeRef = useRef<THREE.Group | null>(null);
   
-  // Updated Target RPM to 800
-  const targetRPM = 800;
+  // Updated Target RPM to 16000
+  const targetRPM = 16000;
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -100,12 +100,12 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const delta = clientX - previousMouseXRef.current;
       
-      // Increased sensitivity for 800 RPM
-      velocityRef.current += delta * 0.02; 
+      // Hyper-sensitivity for 16000 RPM target
+      velocityRef.current += delta * 0.15; 
       
-      // Increased max velocity cap (~1150 RPM max)
-      if (velocityRef.current > 2.0) velocityRef.current = 2.0;
-      if (velocityRef.current < -2.0) velocityRef.current = -2.0;
+      // Extreme velocity cap (approx 30-40 rad/frame needed for 16k RPM)
+      if (velocityRef.current > 50.0) velocityRef.current = 50.0;
+      if (velocityRef.current < -50.0) velocityRef.current = -50.0;
 
       previousMouseXRef.current = clientX;
     };
@@ -119,9 +119,9 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
       if (!event.rotationRate) return;
       const magnitude = Math.abs(event.rotationRate.beta || 0) + Math.abs(event.rotationRate.gamma || 0);
       
-      if (magnitude > 150) { 
-         // Stronger impulse for shake
-         velocityRef.current += 0.5; 
+      if (magnitude > 100) { 
+         // Stronger impulse for shake to reach high RPM
+         velocityRef.current += 5.0; 
       }
     };
 
@@ -150,8 +150,8 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
       }
 
       if (!isDraggingRef.current) {
-        // Reduced friction slightly to maintain high RPM longer
-        velocityRef.current *= 0.985; 
+        // Low friction to allow extreme spin up
+        velocityRef.current *= 0.99; 
       }
 
       const currentRPM = Math.abs((velocityRef.current * 60 * 60) / (2 * Math.PI));

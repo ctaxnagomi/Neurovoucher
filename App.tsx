@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -10,8 +10,15 @@ import { ReceiptEditor } from './pages/ReceiptEditor';
 import { LHDNLetterGenerator } from './pages/LHDNLetterGenerator';
 import { Settings } from './pages/Settings';
 import { LiveAgentProvider } from './contexts/LiveAgentContext';
+import { Intro } from './pages/Intro';
 
 function App() {
+  const [showIntro, setShowIntro] = useState(true);
+
+  if (showIntro) {
+    return <Intro onComplete={() => setShowIntro(false)} />;
+  }
+
   return (
     <LiveAgentProvider>
       <HashRouter>
