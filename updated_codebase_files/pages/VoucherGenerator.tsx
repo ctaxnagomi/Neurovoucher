@@ -1,16 +1,70 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient, extractLetterhead } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins, FileSpreadsheet } from 'lucide-react';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins, FileSpreadsheet, MessageSquare } from 'lucide-react';
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 import { jsPDF } from "jspdf";
 import { generateDetailedVoucherExcel } from '../lib/export/excel-generator';
 
-// Simple Number to Words fallback if lib missing (Mock implementation for this context)
+// Number to Words Implementation
+const numberToWords = (n: number): string => {
+    const ones = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
+    const tens = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
+    const scales = ['', 'THOUSAND', 'MILLION', 'BILLION'];
+
+    if (n === 0) return 'ZERO';
+
+    const convertChunk = (num: number): string => {
+        let str = '';
+        if (num >= 100) {
+            str += ones[Math.floor(num / 100)] + ' HUNDRED';
+            num %= 100;
+            if (num > 0) str += ' ';
+        }
+        if (num > 0) {
+            if (num < 20) {
+                str += ones[num];
+            } else {
+                str += tens[Math.floor(num / 10)];
+                if (num % 10 > 0) str += '-' + ones[num % 10];
+            }
+        }
+        return str;
+    };
+
+    let words = '';
+    let scaleIndex = 0;
+    let num = Math.floor(n);
+    
+    if (num === 0) words = 'ZERO';
+    else {
+        while (num > 0) {
+            const chunk = num % 1000;
+            if (chunk > 0) {
+                const chunkStr = convertChunk(chunk);
+                words = chunkStr + (scales[scaleIndex] ? ' ' + scales[scaleIndex] : '') + (words ? ' ' + words : '');
+            }
+            num = Math.floor(num / 1000);
+            scaleIndex++;
+        }
+    }
+    return words;
+};
+
 const toWords = (amount: number) => {
-    return `RINGGIT MALAYSIA ${amount.toFixed(2)} ONLY`; 
+    const integerPart = Math.floor(amount);
+    const decimalPart = Math.round((amount - integerPart) * 100);
+
+    let result = numberToWords(integerPart);
+    
+    if (decimalPart > 0) {
+        result += ` AND CENTS ${numberToWords(decimalPart)}`;
+    }
+    
+    return `${result} MALAYSIAN RINGGIT ONLY`;
 };
 
 // Placeholder Constants to ensure consistency between UI and Logic
@@ -42,6 +96,10 @@ interface BatchItem {
     error?: string;
 }
 
+// Styling Constants for White Neumorphic Theme
+const WHITE_INPUT_THEME = "!bg-white !shadow-[inset_2px_2px_5px_rgba(163,177,198,0.15),inset_-2px_-2px_5px_rgba(255,255,255,0.8)] !border-transparent placeholder:!text-gray-400 focus:!ring-2 focus:!ring-blue-100/50";
+const AUTO_FILLED_THEME = "!bg-purple-50 !shadow-[inset_2px_2px_5px_rgba(147,51,234,0.05)] !text-purple-700 !border-purple-100 focus:!ring-2 focus:!ring-purple-200";
+
 const AutoFilledIndicator = ({ className }: { className?: string }) => (
     <div className={`absolute right-3 top-1/2 -translate-y-1/2 text-purple-500 animate-pulse z-10 pointer-events-auto cursor-help ${className}`} title="Auto-filled by AI">
         <Sparkles size={16} fill="currentColor" className="opacity-70" />
@@ -49,6 +107,7 @@ const AutoFilledIndicator = ({ className }: { className?: string }) => (
 );
 
 export const VoucherGenerator: React.FC = () => {
+  const navigate = useNavigate();
   // Voucher / Payee Details
   const [payee, setPayee] = useState('');
   const [payeeIc, setPayeeIc] = useState('');
@@ -168,9 +227,9 @@ export const VoucherGenerator: React.FC = () => {
   };
 
   // Helper to switch between White (Default) and Purple (Auto-filled)
-  // This ensures we always override the default grey bgBase
+  // Uses the new defined themes
   const getAutoFillClass = (field: string) => 
-    autoFilledFields.has(field) ? "!bg-purple-50 ring-2 ring-purple-400/30" : "!bg-white";
+    autoFilledFields.has(field) ? AUTO_FILLED_THEME : WHITE_INPUT_THEME;
 
   const addItem = () => {
     setItems([...items, { id: Date.now().toString(), description: '', amount: 0 }]);
@@ -210,6 +269,26 @@ export const VoucherGenerator: React.FC = () => {
     
     setDescription(summary);
     setLoadingAI(false);
+  };
+
+  const handleAskAI = () => {
+    const voucherData = `
+    Payee: ${payee || 'N/A'}
+    IC/Reg: ${payeeIc || 'N/A'}
+    Date: ${voucherDate || 'N/A'}
+    Total: RM ${total.toFixed(2)}
+    Items: ${items.map(i => `${i.description || 'Item'} (RM${i.amount})`).join(', ')}
+    Company: ${companyName || 'N/A'}
+    Tax Category: ${taxCategory || 'N/A'}
+    Tax Deductible: ${isTaxDeductible ? 'Yes' : 'No'}
+    `;
+    
+    navigate('/chat', { 
+        state: { 
+            initialInput: "Please analyze this voucher for LHDN compliance, specifically regarding the tax deductibility and category.",
+            voucherContext: voucherData
+        } 
+    });
   };
 
   const toggleDictation = async () => {
@@ -282,7 +361,7 @@ export const VoucherGenerator: React.FC = () => {
 
   const handleReadAloud = async () => {
     setPlayingAudio(true);
-    const textToRead = `Voucher ${voucherNo ? voucherNo : ''} for ${payee}. Total amount is Ringgit Malaysia ${total.toFixed(2)}.`;
+    const textToRead = `Voucher ${voucherNo ? voucherNo : ''} for ${payee}. Total amount is ${toWords(total)}.`;
     const audioBuffer = await generateSpeech(textToRead);
     
     if (audioBuffer) {
@@ -403,14 +482,14 @@ export const VoucherGenerator: React.FC = () => {
 
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
     if (!validTypes.includes(file.type)) {
-        setErrorModal({ show: true, title: "Unsupported File", message: "Unsupported file type. Please upload a JPEG, PNG, or WebP image." });
+        setErrorModal({ show: true, title: "Unsupported File Type", message: "The selected file format is not supported. Please upload a JPEG, PNG, or WebP image." });
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
     }
 
     const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-        setErrorModal({ show: true, title: "File Too Large", message: "File size too large. Please upload an image smaller than 10MB." });
+        setErrorModal({ show: true, title: "File Too Large", message: "File size exceeds 10MB limit. Please upload a smaller image for faster processing." });
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
     }
@@ -431,18 +510,47 @@ export const VoucherGenerator: React.FC = () => {
             setShowOCRConfirm(true);
             
         } catch (error: any) {
-            console.error(error);
-            let message = "An error occurred while scanning the receipt.";
+            console.error("OCR Error:", error);
+            
             let title = "Scan Failed";
-            const errStr = error.toString().toLowerCase();
-            const errMsg = (error.message || "").toLowerCase();
+            let message = "An unexpected error occurred while processing the receipt. Please try again.";
+            
+            const errString = error.toString().toLowerCase();
+            const errMessage = (error.message || "").toLowerCase();
+            const errStatus = error.status || error.response?.status;
 
-            if (errMsg.includes("parsing_failed") || errMsg === "empty_data") {
+            // 1. API / Auth Errors
+            if (errString.includes("api_key") || errString.includes("403") || errStatus === 403) {
+                title = "Authentication Error";
+                message = "The API Key is invalid, missing, or has expired. Please go to Settings to configure a valid Gemini API Key.";
+            } 
+            else if (errString.includes("429") || errStatus === 429) {
+                title = "Rate Limit Exceeded";
+                message = "You have made too many requests in a short period. Please wait a moment before scanning again.";
+            }
+            else if (errString.includes("500") || errString.includes("503") || errStatus >= 500) {
+                 title = "Service Unavailable";
+                 message = "Google Gemini services are currently experiencing issues. Please try again later.";
+            }
+            // 2. Network Errors
+            else if (errString.includes("network") || errString.includes("offline") || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+                title = "Connection Error";
+                message = "No internet connection detected. Please check your network settings and try again.";
+            }
+            // 3. Content Errors (Blurry/Empty)
+            else if (errMessage.includes("parsing_failed") || errMessage === "empty_data" || errMessage === "no_response_text") {
                 title = "Image Unreadable";
-                message = "The image might be too blurry, dark, or lacks clear text. Please try again with a clearer photo.";
-            } else if (errMsg.includes("api_key") || errStr.includes("403")) {
-                title = "API Connection Error";
-                message = "Authorization failed. Please check your API Key settings.";
+                message = "The receipt image appears to be too blurry, dark, or contains no readable text. Please try capturing a clearer photo with better lighting.";
+            }
+            // 4. Safety Filters
+            else if (errString.includes("safety") || errString.includes("blocked")) {
+                 title = "Content Blocked";
+                 message = "The image was flagged by safety filters. Please ensure the image is a valid receipt and contains no prohibited content.";
+            }
+            // 5. Quota
+             else if (errString.includes("quota")) {
+                 title = "Quota Exceeded";
+                 message = "Your API usage quota has been exceeded. Please check your Google AI Studio billing details.";
             }
 
             setErrorModal({ show: true, message, title });
@@ -451,7 +559,7 @@ export const VoucherGenerator: React.FC = () => {
         }
     };
     reader.onerror = () => {
-        setErrorModal({ show: true, title: "Read Error", message: "Failed to read the file." });
+        setErrorModal({ show: true, title: "File Read Error", message: "Failed to read the file from your device. It may be corrupted." });
         setScanning(false);
     };
     reader.readAsDataURL(file);
@@ -508,7 +616,8 @@ export const VoucherGenerator: React.FC = () => {
 
   const loadFromBatch = (item: BatchItem) => {
       if (!item.data) return;
-      applyOCRData(item.data);
+      setExtractedData(item.data);
+      setShowOCRConfirm(true);
       setShowBatchModal(false);
   };
 
@@ -659,6 +768,10 @@ export const VoucherGenerator: React.FC = () => {
     });
   };
 
+  const handleApplyOCRConfirm = () => {
+    applyOCRData();
+  };
+
   const handleSaveClick = () => {
     const errors: string[] = [];
     if (!companyName.trim()) errors.push("Company Name is required.");
@@ -787,7 +900,7 @@ export const VoucherGenerator: React.FC = () => {
         doc.text(total.toFixed(2), rightM - 2, y + 6.5, { align: "right" });
         doc.setFontSize(9);
         doc.setFont("helvetica", "italic");
-        doc.text(`Ringgit Malaysia: ${toWords(total)}`, leftM + 2, y + 6.5);
+        doc.text(toWords(total), leftM + 2, y + 6.5);
 
         y += 15;
         doc.setFont("helvetica", "normal");
@@ -924,7 +1037,7 @@ export const VoucherGenerator: React.FC = () => {
         
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full lg:w-auto">
              {/* Language Selector for OCR - Updated to White Neumorphic */}
-             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-inner w-full sm:w-auto min-w-[140px] h-[42px]">
+             <div className={`flex items-center gap-2 px-3 py-2 rounded-xl w-full sm:w-auto min-w-[140px] h-[42px] ${WHITE_INPUT_THEME}`}>
                 <Languages size={16} className="text-gray-400 shrink-0" />
                 <div className="flex-1">
                     <select 
@@ -958,6 +1071,17 @@ export const VoucherGenerator: React.FC = () => {
                     onChange={handleBatchScan}
                     multiple
                 />
+
+                {/* View Queue Button */}
+                {batchQueue.length > 0 && (
+                     <NeuroButton 
+                        onClick={() => setShowBatchModal(true)} 
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[140px] bg-purple-50 text-purple-700 border border-purple-200"
+                     >
+                        <Layers size={16} />
+                        View Queue ({batchQueue.length})
+                     </NeuroButton>
+                )}
 
                 <NeuroButton onClick={() => batchInputRef.current?.click()} disabled={scanning || isBatchProcessing} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[140px]">
                     <Layers size={16} className={isBatchProcessing ? "animate-pulse text-purple-500" : "text-purple-600"} />
@@ -1103,9 +1227,9 @@ export const VoucherGenerator: React.FC = () => {
                                     value={companyTel}
                                     onChange={(e) => { setCompanyTel(e.target.value); handleFieldChange('companyTel'); }}
                                     placeholder={PLACEHOLDERS.companyTel}
-                                    className={`text-sm pl-8 pr-2 py-2 truncate ${getAutoFillClass('companyTel')}`}
+                                    className={`text-sm pl-10 pr-2 truncate ${getAutoFillClass('companyTel')}`}
                                 />
-                                <Phone size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyTel') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
                             </div>
                          </div>
@@ -1116,9 +1240,9 @@ export const VoucherGenerator: React.FC = () => {
                                     value={companyFax}
                                     onChange={(e) => { setCompanyFax(e.target.value); handleFieldChange('companyFax'); }}
                                     placeholder={PLACEHOLDERS.companyFax}
-                                    className={`text-sm pl-8 pr-2 py-2 truncate ${getAutoFillClass('companyFax')}`}
+                                    className={`text-sm pl-10 pr-2 truncate ${getAutoFillClass('companyFax')}`}
                                 />
-                                <Printer size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <Printer size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyFax') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
                             </div>
                          </div>
@@ -1129,9 +1253,9 @@ export const VoucherGenerator: React.FC = () => {
                                     value={companyEmail}
                                     onChange={(e) => { setCompanyEmail(e.target.value); handleFieldChange('companyEmail'); }}
                                     placeholder={PLACEHOLDERS.companyEmail}
-                                    className={`text-sm pl-8 pr-2 py-2 truncate ${getAutoFillClass('companyEmail')}`}
+                                    className={`text-sm pl-10 pr-2 truncate ${getAutoFillClass('companyEmail')}`}
                                 />
-                                <Mail size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 {autoFilledFields.has('companyEmail') && <div className="absolute right-1 top-1/2 -translate-y-1/2"><Sparkles size={12} className="text-purple-500 opacity-70" /></div>}
                             </div>
                          </div>
@@ -1152,7 +1276,7 @@ export const VoucherGenerator: React.FC = () => {
                                 value={voucherNo} 
                                 onChange={(e) => setVoucherNo(e.target.value)} 
                                 placeholder={PLACEHOLDERS.voucherNo}
-                                className={`pl-10 truncate !bg-white`}
+                                className={`pl-10 truncate ${WHITE_INPUT_THEME}`}
                             />
                             <FileText size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         </div>
@@ -1224,7 +1348,7 @@ export const VoucherGenerator: React.FC = () => {
                             value={preparedBy} 
                             onChange={(e) => setPreparedBy(e.target.value)} 
                             placeholder="Name" 
-                            className="!bg-white"
+                            className={WHITE_INPUT_THEME}
                         />
                     </div>
                     <div>
@@ -1233,7 +1357,7 @@ export const VoucherGenerator: React.FC = () => {
                             value={approvedBy} 
                             onChange={(e) => setApprovedBy(e.target.value)} 
                             placeholder="Name" 
-                            className="!bg-white"
+                            className={WHITE_INPUT_THEME}
                         />
                     </div>
 
@@ -1374,7 +1498,7 @@ export const VoucherGenerator: React.FC = () => {
                                     placeholder="Item Description" 
                                     value={item.description}
                                     onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                                    className="truncate !bg-white"
+                                    className={`truncate ${WHITE_INPUT_THEME}`}
                                 />
                             </div>
                             
@@ -1435,6 +1559,14 @@ export const VoucherGenerator: React.FC = () => {
                     >
                         <Sparkles size={16} className={loadingAI ? "animate-spin" : ""} />
                         {loadingAI ? 'Generating...' : 'AI Check Description'}
+                    </NeuroButton>
+
+                    <NeuroButton 
+                        onClick={handleAskAI} 
+                        className="w-full text-blue-600 text-sm py-3 flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 border border-blue-200"
+                    >
+                        <MessageSquare size={16} />
+                        Ask AI Advisor
                     </NeuroButton>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -1499,6 +1631,7 @@ export const VoucherGenerator: React.FC = () => {
                             onChange={(e) => { setOriginalDate(e.target.value); handleFieldChange('originalDate'); }} 
                             className={`pl-10 pr-10 truncate ${getAutoFillClass('originalDate')}`}
                         />
+                        <Calendar size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         {autoFilledFields.has('originalDate') && <AutoFilledIndicator />}
                     </div>
                </div>
@@ -1508,7 +1641,7 @@ export const VoucherGenerator: React.FC = () => {
                         placeholder={PLACEHOLDERS.evidenceType}
                         value={evidenceType}
                         onChange={(e) => setEvidenceType(e.target.value)}
-                        className="truncate !bg-white"
+                        className={`truncate ${WHITE_INPUT_THEME}`}
                     />
                </div>
                <div>
@@ -1517,7 +1650,7 @@ export const VoucherGenerator: React.FC = () => {
                         placeholder={PLACEHOLDERS.evidenceRef}
                         value={evidenceRef}
                         onChange={(e) => setEvidenceRef(e.target.value)}
-                        className="truncate !bg-white"
+                        className={`truncate ${WHITE_INPUT_THEME}`}
                     />
                </div>
                <div className="md:col-span-2 lg:col-span-3">
@@ -1527,7 +1660,7 @@ export const VoucherGenerator: React.FC = () => {
                         value={lostReason}
                         onChange={(e) => setLostReason(e.target.value)}
                         rows={2}
-                        className={`resize-none !bg-white`}
+                        className={`resize-none ${WHITE_INPUT_THEME}`}
                     />
                </div>
           </div>
@@ -1776,7 +1909,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.payeeName || ''} 
                                     onChange={(e) => handleExtractedDataChange('payeeName', e.target.value)}
                                     placeholder="Merchant Name"
-                                    className={`!py-2 text-sm font-semibold !bg-white`}
+                                    className={`!py-2 text-sm font-semibold ${WHITE_INPUT_THEME}`}
                                 />
                              </div>
                              <div>
@@ -1785,7 +1918,7 @@ export const VoucherGenerator: React.FC = () => {
                                     type="date"
                                     value={extractedData.date || ''} 
                                     onChange={(e) => handleExtractedDataChange('date', e.target.value)}
-                                    className={`!py-2 text-sm !bg-white`}
+                                    className={`!py-2 text-sm ${WHITE_INPUT_THEME}`}
                                 />
                              </div>
                              <div>
@@ -1795,7 +1928,7 @@ export const VoucherGenerator: React.FC = () => {
                                         type="number"
                                         value={extractedData.totalAmount || ''} 
                                         onChange={(e) => handleExtractedDataChange('totalAmount', parseFloat(e.target.value))}
-                                        className={`!py-2 text-sm pr-2 text-right font-bold text-purple-600 !bg-white`}
+                                        className={`!py-2 text-sm pr-2 text-right font-bold text-purple-600 ${WHITE_INPUT_THEME}`}
                                     />
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">RM</span>
                                     {(!extractedData.totalAmount || extractedData.totalAmount === 0) && (
@@ -1822,7 +1955,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyName || ''}
                                     onChange={(e) => handleExtractedDataChange('companyName', e.target.value)}
                                     placeholder="N/A"
-                                    className={`!py-1.5 text-xs !bg-white`}
+                                    className={`!py-1.5 text-xs ${WHITE_INPUT_THEME}`}
                                 />
                             </div>
                             <div>
@@ -1831,7 +1964,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyRegNo || ''}
                                     onChange={(e) => handleExtractedDataChange('companyRegNo', e.target.value)}
                                     placeholder="N/A"
-                                    className={`!py-1.5 text-xs !bg-white`}
+                                    className={`!py-1.5 text-xs ${WHITE_INPUT_THEME}`}
                                 />
                             </div>
                             <div className="col-span-2">
@@ -1840,7 +1973,7 @@ export const VoucherGenerator: React.FC = () => {
                                     value={extractedData.companyAddress || ''}
                                     onChange={(e) => handleExtractedDataChange('companyAddress', e.target.value)}
                                     placeholder="N/A"
-                                    className={`!py-1.5 text-xs !bg-white`}
+                                    className={`!py-1.5 text-xs ${WHITE_INPUT_THEME}`}
                                 />
                             </div>
                         </div>
@@ -1874,7 +2007,7 @@ export const VoucherGenerator: React.FC = () => {
                                 <NeuroInput 
                                     value={extractedData.taxCategory || ''}
                                     onChange={(e) => handleExtractedDataChange('taxCategory', e.target.value)}
-                                    className={`!py-1.5 text-xs !bg-white`}
+                                    className={`!py-1.5 text-xs ${WHITE_INPUT_THEME}`}
                                 />
                             </div>
                              <div>
@@ -1882,14 +2015,18 @@ export const VoucherGenerator: React.FC = () => {
                                 <NeuroInput 
                                     value={extractedData.taxCode || extractedData.taxLimit || ''}
                                     onChange={(e) => handleExtractedDataChange('taxCode', e.target.value)}
-                                    className={`!py-1.5 text-xs !bg-white`}
+                                    className={`!py-1.5 text-xs ${WHITE_INPUT_THEME}`}
                                 />
                             </div>
                             <div className="col-span-2">
                                 <label className="text-[10px] text-blue-400 uppercase font-bold block mb-1">Reasoning</label>
-                                <div className="text-xs text-blue-800 italic bg-[#e0e5ec] shadow-[inset_2px_2px_5px_rgba(163,177,198,0.6),inset_-2px_-2px_5px_rgba(255,255,255,0.5)] p-2 rounded-lg">
-                                    {extractedData.taxReason || "No specific tax reasoning provided."}
-                                </div>
+                                <NeuroTextarea 
+                                    value={extractedData.taxReason || ''}
+                                    onChange={(e) => handleExtractedDataChange('taxReason', e.target.value)}
+                                    className={`!py-2 text-xs ${WHITE_INPUT_THEME}`}
+                                    placeholder="Tax reasoning..."
+                                    rows={3}
+                                />
                             </div>
                          </div>
                     </div>
@@ -1906,7 +2043,7 @@ export const VoucherGenerator: React.FC = () => {
                         Cancel
                     </NeuroButton>
                     <NeuroButton 
-                        onClick={() => applyOCRData()} 
+                        onClick={handleApplyOCRConfirm} 
                         className="text-sm text-white bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-200 font-bold px-6 flex items-center gap-2"
                     >
                         <CheckCircle2 size={16} /> Apply Details
