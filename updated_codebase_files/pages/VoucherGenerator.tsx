@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect, NeuroToggle } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient, extractLetterhead } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins, FileSpreadsheet, MessageSquare, ListTodo, CreditCard } from 'lucide-react';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins, FileSpreadsheet, MessageSquare, ListTodo, CreditCard, FileType } from 'lucide-react';
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 import { jsPDF } from "jspdf";
@@ -705,54 +705,164 @@ export const VoucherGenerator: React.FC = () => {
   const generatePDF = (mode: 'download' | 'preview' = 'download') => {
     try {
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        // Simplified PDF generation logic for brevity but assume full features
-        const leftM = 20;
+        
+        // --- 1. Header Section ---
+        const leftM = 15;
+        const rightM = 195;
         let y = 15;
+
+        // Border
+        doc.setDrawColor(80, 80, 80);
+        doc.setLineWidth(0.3);
+        doc.rect(10, 10, 190, 277);
+
+        // Logo
         if (companyLogo) {
              try {
                 const imgProps = doc.getImageProperties(companyLogo);
-                doc.addImage(companyLogo, imgProps.fileType, leftM, y, 40, 25);
+                // Maintain aspect ratio, max width 40, max height 25
+                doc.addImage(companyLogo, imgProps.fileType, leftM, y, 35, 20);
              } catch(e) {}
         }
-        doc.setFontSize(16); doc.text(companyName.toUpperCase(), companyLogo ? 70 : 20, y+6);
-        doc.setFontSize(9); doc.text(`Reg: ${companyRegNo}\n${companyAddress}`, companyLogo ? 70 : 20, y+12);
         
-        y += 40;
-        doc.setFontSize(18); doc.text("PAYMENT VOUCHER", 105, y, { align: 'center' });
-        y += 15;
-        doc.setFontSize(10);
-        doc.text(`Pay To: ${payee}`, 20, y);
-        doc.text(`Voucher No: ${voucherNo}`, 140, y);
-        y += 6;
-        doc.text(`Date: ${voucherDate}`, 140, y);
-        
-        // Add Payee Address if available
-        if(payeeAddress) {
-             y += 6;
-             doc.text(`Address: ${payeeAddress}`, 20, y);
-        }
-        
-        // Add Payment Method Details
-        y += 12;
+        // Company Info
         doc.setFont("helvetica", "bold");
-        doc.text("Payment Details:", 20, y);
-        doc.setFont("helvetica", "normal");
-        y += 5;
-        doc.text(`Method: ${paymentMethod}`, 20, y);
-        if(bankName) doc.text(`Bank: ${bankName}`, 80, y);
-        if(paymentRef) doc.text(`Ref: ${paymentRef}`, 140, y);
+        doc.setFontSize(16);
+        const titleX = companyLogo ? 60 : leftM;
+        doc.text(companyName.toUpperCase(), titleX, y+6);
         
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text(`Co. Reg No: ${companyRegNo}`, titleX, y+11);
+        doc.text(companyAddress || "", titleX, y+16);
+        let contactStr = "";
+        if(companyTel) contactStr += `Tel: ${companyTel}  `;
+        if(companyEmail) contactStr += `Email: ${companyEmail}`;
+        doc.text(contactStr, titleX, y+24);
+
+        y += 35; // Move down
+
+        // Voucher Title Box
+        doc.setFillColor(230, 230, 230);
+        doc.rect(10, y, 190, 10, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.setTextColor(50, 50, 50);
+        doc.text("PAYMENT VOUCHER", 105, y+7, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+
+        y += 18;
+
+        // --- 2. Voucher & Payee Info (Grid) ---
+        doc.setFontSize(10);
+        
+        // Left Column (Payee)
+        doc.setFont("helvetica", "bold");
+        doc.text("PAY TO:", leftM, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(payee, leftM, y+5);
+        if(payeeIc) {
+             doc.setFontSize(9);
+             doc.text(`IC/Reg: ${payeeIc}`, leftM, y+10);
+        }
+        if(payeeAddress) {
+            doc.setFontSize(9);
+            const splitAddress = doc.splitTextToSize(payeeAddress, 80);
+            doc.text(splitAddress, leftM, y+15);
+        }
+
+        // Right Column (Voucher Details)
+        const col2X = 120;
+        doc.setFontSize(10);
+        
+        doc.setFont("helvetica", "bold");
+        doc.text("Voucher No:", col2X, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(voucherNo, col2X + 30, y);
+        
+        doc.setFont("helvetica", "bold");
+        doc.text("Date:", col2X, y+6);
+        doc.setFont("helvetica", "normal");
+        doc.text(voucherDate, col2X + 30, y+6);
+
+        // Payment Details Block
+        y += 30;
+        doc.setDrawColor(200, 200, 200);
+        doc.line(leftM, y, rightM, y);
+        y += 6;
+        
+        doc.setFont("helvetica", "bold");
+        doc.text("PAYMENT DETAILS", leftM, y);
+        y += 6;
+        
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Method: ${paymentMethod}`, leftM, y);
+        if(bankName) doc.text(`Bank: ${bankName}`, leftM + 50, y);
+        if(paymentRef) doc.text(`Ref No: ${paymentRef}`, leftM + 110, y);
+
         y += 10;
+
+        // --- 3. Line Items Table ---
+        const tableTop = y;
+        
+        // Header
+        doc.setFillColor(240, 240, 240);
+        doc.rect(leftM, tableTop, 175, 8, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.text("#", leftM+2, tableTop+5);
+        doc.text("DESCRIPTION", leftM+15, tableTop+5);
+        doc.text("AMOUNT (RM)", rightM-5, tableTop+5, { align: 'right' });
+        
+        y += 12;
+        doc.setFont("helvetica", "normal");
+
         items.forEach((item, i) => {
-            doc.text(`${i+1}. ${item.description} - RM ${Number(item.amount).toFixed(2)}`, 20, y);
-            y += 6;
+            doc.text(`${i+1}`, leftM+2, y);
+            const descLines = doc.splitTextToSize(item.description, 120);
+            doc.text(descLines, leftM+15, y);
+            doc.text(Number(item.amount).toFixed(2), rightM-5, y, { align: 'right' });
+            y += (descLines.length * 5) + 3; // Dynamic height
         });
         
-        doc.line(20, y, 190, y);
+        // Bottom Line of Table
+        doc.line(leftM, y, rightM, y);
+        y += 2;
+
+        // --- 4. Total & Words ---
         y += 6;
-        doc.text(`Total: RM ${total.toFixed(2)}`, 140, y);
+        doc.setFont("helvetica", "bold");
+        doc.text("TOTAL:", 130, y);
+        doc.setFontSize(12);
+        doc.text(`RM ${total.toFixed(2)}`, rightM-5, y, { align: 'right' });
+
+        y += 8;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "italic");
+        doc.text(`Ringgit Malaysia: ${toWords(total)}`, leftM, y);
         
-        if (mode === 'download') doc.save('voucher.pdf');
+        // --- 5. Signatories ---
+        y = 240; // Push to bottom area
+        doc.setFontStyle("normal");
+        doc.setFontSize(9);
+        
+        doc.line(leftM, y, leftM+40, y);
+        doc.text("Prepared By", leftM, y+5);
+        doc.text(preparedBy || "(Name & Sign)", leftM, y+10);
+        
+        doc.line(leftM+60, y, leftM+100, y);
+        doc.text("Approved By", leftM+60, y+5);
+        doc.text(approvedBy || "(Name & Sign)", leftM+60, y+10);
+        
+        doc.line(leftM+120, y, leftM+160, y);
+        doc.text("Received By", leftM+120, y+5);
+        doc.text(payee, leftM+120, y+10);
+        
+        // Footer Note
+        doc.setFontSize(7);
+        doc.text("Computer Generated Voucher - NeuroVoucher AI System", 105, 280, { align: 'center' });
+
+        if (mode === 'download') doc.save(`Voucher_${voucherNo || 'Draft'}.pdf`);
         else {
             const pdfBlob = doc.output('blob');
             setPreviewPdfUrl(URL.createObjectURL(pdfBlob));
@@ -770,12 +880,78 @@ export const VoucherGenerator: React.FC = () => {
         const blob = generateDetailedVoucherExcel(data);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = 'voucher.xlsx';
+        a.href = url; a.download = `Voucher_${voucherNo || 'Draft'}.xlsx`;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    } catch(e) {}
+    } catch(e) {
+        console.error("Excel Export Failed", e);
+    }
   };
   
-  const handleExportWord = () => {};
+  const handleExportWord = () => {
+    try {
+        // Construct a simple HTML document for Word
+        const content = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head><meta charset='utf-8'><title>Payment Voucher</title></head>
+            <body style="font-family: Arial, sans-serif;">
+                <h2 style="text-align:center">${companyName.toUpperCase()}</h2>
+                <p style="text-align:center; font-size: 10px;">${companyAddress} | Reg: ${companyRegNo}</p>
+                <hr/>
+                <h3 style="text-align:center; background-color: #eee; padding: 5px;">PAYMENT VOUCHER</h3>
+                
+                <table style="width:100%; margin-bottom: 20px;">
+                    <tr>
+                        <td valign="top"><strong>Pay To:</strong><br/>${payee}<br/>${payeeIc}<br/>${payeeAddress}</td>
+                        <td valign="top" align="right"><strong>Voucher No:</strong> ${voucherNo}<br/><strong>Date:</strong> ${voucherDate}</td>
+                    </tr>
+                </table>
+
+                <p><strong>Payment Method:</strong> ${paymentMethod} | <strong>Bank:</strong> ${bankName} | <strong>Ref:</strong> ${paymentRef}</p>
+
+                <table border="1" cellpadding="5" cellspacing="0" style="width:100%; border-collapse: collapse;">
+                    <tr style="background-color: #f0f0f0;">
+                        <th>No</th><th>Description</th><th align="right">Amount (RM)</th>
+                    </tr>
+                    ${items.map((item, i) => `
+                        <tr>
+                            <td>${i+1}</td>
+                            <td>${item.description}</td>
+                            <td align="right">${Number(item.amount).toFixed(2)}</td>
+                        </tr>
+                    `).join('')}
+                    <tr>
+                        <td colspan="2" align="right"><strong>TOTAL</strong></td>
+                        <td align="right"><strong>${total.toFixed(2)}</strong></td>
+                    </tr>
+                </table>
+                <p style="font-style: italic;">Ringgit Malaysia: ${toWords(total)}</p>
+
+                <br/><br/>
+                <table style="width:100%; margin-top: 30px;">
+                    <tr>
+                        <td style="border-top: 1px solid black; width: 30%;">Prepared By: ${preparedBy}</td>
+                        <td style="width: 5%;"></td>
+                        <td style="border-top: 1px solid black; width: 30%;">Approved By: ${approvedBy}</td>
+                        <td style="width: 5%;"></td>
+                        <td style="border-top: 1px solid black; width: 30%;">Received By: ${payee}</td>
+                    </tr>
+                </table>
+            </body></html>
+        `;
+
+        const blob = new Blob(['\ufeff', content], {
+            type: 'application/msword'
+        });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Voucher_${voucherNo || 'Draft'}.doc`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    } catch(e) {
+        console.error("Word Export Failed", e);
+    }
+  };
 
   const executeSaveVoucher = (status: 'DRAFT' | 'COMPLETED' = 'COMPLETED') => {
     setShowConfirmDialog(false);
@@ -1084,11 +1260,21 @@ export const VoucherGenerator: React.FC = () => {
                 </div>
                 
                 <div className="pt-6 border-t border-gray-200/50 space-y-3">
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-3">
+                         <NeuroButton onClick={handleExportExcel} className="w-full text-green-700 text-xs py-2 flex items-center justify-center gap-1 bg-green-50 hover:bg-green-100 border border-green-200">
+                             <FileSpreadsheet size={14} /> Excel
+                         </NeuroButton>
+                         <NeuroButton onClick={handleExportWord} className="w-full text-blue-800 text-xs py-2 flex items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 border border-blue-200">
+                             <FileText size={14} /> Word
+                         </NeuroButton>
+                    </div>
+
                     <NeuroButton onClick={handlePreviewPDF} className="w-full text-gray-600 text-sm py-3 flex items-center justify-center gap-2 bg-gray-200 hover:bg-gray-300">
-                        <Eye size={16} /> Preview
+                        <Eye size={16} /> Preview PDF
                     </NeuroButton>
                     <NeuroButton onClick={handleDownloadPDF} className="w-full text-red-600 text-sm py-3 flex items-center justify-center gap-2">
-                        <FileText size={16} /> Download PDF
+                        <Download size={16} /> Download PDF
                     </NeuroButton>
                     <div className="flex gap-3">
                         <NeuroButton onClick={() => executeSaveVoucher('DRAFT')} disabled={saving} className="flex-1 text-gray-600 text-sm">Draft</NeuroButton>
@@ -1101,6 +1287,19 @@ export const VoucherGenerator: React.FC = () => {
 
       {/* Section 5: Lost Receipt Details (Full AI Access) */}
       <NeuroCard title="Lost Receipt Details (Optional)">
+          {/* LHDN Penalty Warning */}
+          <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6 flex gap-3">
+             <div className="min-w-[24px] pt-0.5">
+                 <AlertTriangle className="text-red-500" size={24} />
+             </div>
+             <div>
+                 <h4 className="text-sm font-bold text-red-700 mb-1">Compliance Warning: Fabrication of Documents</h4>
+                 <p className="text-xs text-gray-600 leading-relaxed">
+                    Under <strong>Section 114 of the Income Tax Act 1967</strong>, any person who willfully evades or assists another person to evade tax by making false statements or fabricating false entries/documents is liable to a fine of <strong>RM1,000 to RM20,000</strong> or imprisonment up to <strong>3 years</strong>, or both, plus a penalty of <strong>300%</strong> of the tax undercharged. Ensure all reasons provided below are genuine.
+                 </p>
+             </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                <div>
                     <label className="block text-sm text-gray-500 mb-2">Original Expense Date</label>
