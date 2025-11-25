@@ -8,6 +8,7 @@ import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 import { jsPDF } from "jspdf";
 import { generateDetailedVoucherExcel } from '../lib/export/excel-generator';
+import { useLiveAgent } from '../contexts/LiveAgentContext';
 
 // Number to Words Implementation
 const numberToWords = (n: number): string => {
@@ -108,6 +109,9 @@ const AutoFilledIndicator = ({ className }: { className?: string }) => (
 
 export const VoucherGenerator: React.FC = () => {
   const navigate = useNavigate();
+  // Live Agent Context used only for visual indicator or future use
+  const { connected } = useLiveAgent();
+
   // Voucher / Payee Details
   const [payee, setPayee] = useState('');
   const [payeeIc, setPayeeIc] = useState('');
@@ -209,6 +213,50 @@ export const VoucherGenerator: React.FC = () => {
       dictationCleanupRef.current();
     };
   }, []);
+
+  // Live Agent Tool Event Listener
+  useEffect(() => {
+      const handleFillForm = (e: CustomEvent) => {
+          const data = e.detail;
+          console.log("Live Agent Filling Form:", data);
+          
+          const newAutoFilled = new Set(autoFilledFields);
+
+          if (data.payee) {
+              setPayee(data.payee);
+              newAutoFilled.add('payee');
+          }
+          if (data.date) {
+              setVoucherDate(data.date);
+              newAutoFilled.add('voucherDate');
+          }
+          if (data.description) {
+              setDescription(data.description);
+              newAutoFilled.add('description');
+          }
+          if (data.category) {
+              setCategory(data.category);
+              newAutoFilled.add('category');
+          }
+          if (data.totalAmount) {
+             // Smart Item update: if simple, update item 1
+             setItems(prev => {
+                 const newItems = [...prev];
+                 if (newItems.length > 0) {
+                     newItems[0].amount = data.totalAmount;
+                     newAutoFilled.add(`item-${newItems[0].id}-amount`);
+                 }
+                 return newItems;
+             });
+          }
+          setAutoFilledFields(newAutoFilled);
+      };
+
+      window.addEventListener('neuro-fill-form' as any, handleFillForm as any);
+      return () => {
+          window.removeEventListener('neuro-fill-form' as any, handleFillForm as any);
+      };
+  }, [autoFilledFields]);
 
   // Cleanup PDF URL on preview close
   useEffect(() => {
@@ -1032,7 +1080,14 @@ export const VoucherGenerator: React.FC = () => {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 lg:gap-8">
         <div className="flex-1">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-700 tracking-tight">New Cash Voucher</h2>
-            <p className="text-sm text-gray-500 mt-1">Generate a new payment voucher with AI assistance</p>
+            <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-500 mt-1">Generate a new payment voucher with AI assistance</p>
+                {connected && (
+                    <div className="text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200 animate-pulse flex items-center gap-1 mt-1">
+                         <Mic size={10} /> Live Agent Listening
+                    </div>
+                )}
+            </div>
         </div>
         
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full lg:w-auto">
