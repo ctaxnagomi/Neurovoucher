@@ -22,18 +22,59 @@ const LiveAgentContext = createContext<LiveAgentContextType | undefined>(undefin
 
 const fillVoucherTool: FunctionDeclaration = {
   name: "fill_voucher_form",
-  description: "Fill in information into the Payment Voucher form. Use this when the user is on the Voucher Generator page and asks to enter data.",
+  description: "Fill in ANY field on the Voucher Generator. Use this for Company Info, Payee Details, Authorization, or Lost Receipt sections.",
   parameters: {
     type: Type.OBJECT,
     properties: {
+      // Voucher / Payee
       payee: { type: Type.STRING, description: "Name of the payee/merchant" },
-      totalAmount: { type: Type.NUMBER, description: "Total amount of the expense" },
-      date: { type: Type.STRING, description: "Date of expense (YYYY-MM-DD)" },
-      description: { type: Type.STRING, description: "Description of the item/service" },
-      category: { type: Type.STRING, description: "Expense category" }
+      payeeIc: { type: Type.STRING, description: "Payee IC or Company Reg No" },
+      voucherNo: { type: Type.STRING, description: "Voucher Number (e.g. PV-2024-001)" },
+      date: { type: Type.STRING, description: "Voucher Date (YYYY-MM-DD)" },
+      category: { type: Type.STRING, description: "Expense category" },
+      description: { type: Type.STRING, description: "Main description" },
+      preparedBy: { type: Type.STRING, description: "Name of person preparing" },
+      approvedBy: { type: Type.STRING, description: "Name of person approving" },
+      
+      // Company Info (Header)
+      companyName: { type: Type.STRING },
+      companyRegNo: { type: Type.STRING },
+      companyAddress: { type: Type.STRING },
+      companyTel: { type: Type.STRING },
+      companyEmail: { type: Type.STRING },
+
+      // Lost Receipt Section
+      originalDate: { type: Type.STRING, description: "Original expense date" },
+      evidenceType: { type: Type.STRING, description: "Type of evidence (e.g. Bank Statement)" },
+      evidenceRef: { type: Type.STRING, description: "Reference number for evidence" },
+      lostReason: { type: Type.STRING, description: "Reason why receipt is missing" }
     }
   }
 };
+
+const addItemTool: FunctionDeclaration = {
+  name: "add_voucher_item",
+  description: "Add a new line item row to the voucher table.",
+  parameters: {
+      type: Type.OBJECT,
+      properties: {
+          description: { type: Type.STRING, description: "Item description" },
+          amount: { type: Type.NUMBER, description: "Item cost/amount" }
+      },
+      required: ["description", "amount"]
+  }
+};
+
+const downloadTool: FunctionDeclaration = {
+    name: "download_voucher_pdf",
+    description: "Trigger the download of the completed Voucher PDF.",
+    parameters: {
+        type: Type.OBJECT,
+        properties: {
+            confirm: { type: Type.BOOLEAN }
+        }
+    }
+}
 
 const fillLHDNTool: FunctionDeclaration = {
   name: "fill_lhdn_letter",
@@ -129,21 +170,24 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
             responseModalities: [Modality.AUDIO],
-            tools: [{ functionDeclarations: [fillVoucherTool, fillLHDNTool, navigationTool] }],
-            systemInstruction: `You are NeuroVoucher's persistent AI Agent with spatial control.
+            tools: [{ functionDeclarations: [fillVoucherTool, addItemTool, downloadTool, fillLHDNTool, navigationTool] }],
+            systemInstruction: `You are NeuroVoucher's Compliance Officer & Live Agent.
             
-            CAPABILITIES:
-            1. **Spatial Vision**: You receive screenshots of the user's screen every 1.5 seconds. You can SEE the current form state, dropdown values, and navigation.
-            2. **Navigation Control**: You can navigate the user to different pages using 'navigate_app'.
-            3. **Form Filling**: You can physically fill in forms.
-               - Voucher Generator: 'fill_voucher_form'
-               - LHDN Letter: 'fill_lhdn_letter'
+            GOAL: Ensure the user's voucher is 100% Complete and Compliant.
+            
+            YOUR CAPABILITIES:
+            1. **Spatial Vision**: You see the user's screen every 1.5s. You can see the "Compliance Progress" bar.
+            2. **Full Form Control**: You can fill ANY field (Company, Voucher, Lost Receipt) using 'fill_voucher_form'.
+            3. **Add Items**: Use 'add_voucher_item' to add new rows.
+            4. **Download**: Use 'download_voucher_pdf' when the user is ready.
             
             BEHAVIOR:
-            - If the user asks "what do you see", describe the *current* active tab and form values visible in the screenshot.
-            - If the user asks to "go to" a page, use 'navigate_app'.
-            - When filling forms, be precise.
-            - Keep responses short and conversational.`,
+            - **Drive Progress**: Look at the "Compliance Progress" on screen. If it's not 100%, tell the user what is missing (e.g., "You need to upload a company logo" or "Please upload a receipt").
+            - **Auto-Fill**: If the user provides info verbally, fill it immediately.
+            - **Checklist**: Remind them to upload a Company Logo and Receipt Image if missing.
+            - **Navigation**: Use 'navigate_app' if they want to go elsewhere.
+            
+            Keep responses helpful, concise, and focused on getting that progress bar to 100%.`,
             speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
             }
@@ -194,11 +238,16 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                         addLog(`Tool Used: ${fc.name}`);
                         
                         if (fc.name === 'fill_voucher_form') {
-                            // Trigger visual highlight for the fields being edited
                             const fields = Object.keys(fc.args as object);
                             window.dispatchEvent(new CustomEvent('neuro-ai-highlight', { detail: { fields } }));
                             window.dispatchEvent(new CustomEvent('neuro-fill-voucher', { detail: fc.args }));
-                        } 
+                        }
+                        else if (fc.name === 'add_voucher_item') {
+                            window.dispatchEvent(new CustomEvent('neuro-add-item', { detail: fc.args }));
+                        }
+                        else if (fc.name === 'download_voucher_pdf') {
+                            window.dispatchEvent(new CustomEvent('neuro-download-pdf', { detail: {} }));
+                        }
                         else if (fc.name === 'fill_lhdn_letter') {
                             const fields = Object.keys(fc.args as object);
                             window.dispatchEvent(new CustomEvent('neuro-ai-highlight', { detail: { fields } }));
