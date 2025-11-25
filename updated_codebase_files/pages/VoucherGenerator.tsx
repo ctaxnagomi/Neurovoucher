@@ -843,7 +843,7 @@ export const VoucherGenerator: React.FC = () => {
         
         // --- 5. Signatories ---
         y = 240; // Push to bottom area
-        doc.setFontStyle("normal");
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         
         doc.line(leftM, y, leftM+40, y);

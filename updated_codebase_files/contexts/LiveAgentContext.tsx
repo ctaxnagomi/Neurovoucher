@@ -125,12 +125,15 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
   const addLog = (msg: string) => setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 10));
 
   // --- Spatial Feature: Capture Screen ---
+  // Captures the full screen while ignoring the agent widget to prevent visual loops
   const captureScreen = async () => {
     try {
-        if (typeof html2canvas === 'undefined') return null;
+        if (typeof html2canvas === 'undefined') {
+            console.warn("html2canvas not loaded");
+            return null;
+        }
         
         // Capture the entire document body for full context
-        // Optimized settings for speed
         const canvas = await html2canvas(document.body, { 
             scale: 0.5, // 0.5 scale for performance vs clarity balance
             logging: false,
@@ -150,13 +153,14 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
   };
 
   const sendContextInfo = (text: string) => {
-     // NOTE: The current Gemini Live API handles 'text' input mainly for user turns.
-     // We rely on the system knowing the context via screen capture + tool use confirmation.
      addLog(`Context Update: ${text}`);
   };
 
   const connect = async () => {
-    if (connected || isConnecting) return; // Strict lock
+    if (connected || isConnecting) {
+        console.warn("Session already active or connecting");
+        return;
+    }
 
     setIsConnecting(true);
     addLog("Initializing connection...");
@@ -184,16 +188,16 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
             GOAL: Help the user complete vouchers and forms accurately.
             
             CAPABILITIES:
-            1. **Vision**: You receive a screen capture every 1.5 seconds. You can see what the user sees, including form values and dropdowns.
-            2. **Navigation**: If the user asks to go to a page, use 'navigate_app'.
+            1. **Vision**: You receive a screen capture every 1.5 seconds. You see exactly what the user sees. Use this for context.
+            2. **Navigation**: If the user asks to go to a page or you need to see a different form, use 'navigate_app'.
             3. **Form Filling**: Use 'fill_voucher_form' or 'fill_lhdn_letter' to update fields.
-            4. **Progress**: Monitor the "Compliance Progress" bar visually.
+            4. **Progress**: Monitor the visual progress bars or empty fields (red borders) on screen.
             
             BEHAVIOR:
-            - **Be Proactive**: If you see missing fields (marked red), ask for them.
-            - **Spatial Awareness**: Refer to elements by their location if needed ("The box on the right").
+            - **Be Proactive**: If you see missing fields, ask for them.
+            - **Spatial Awareness**: You can refer to elements by their location (e.g., "The box on the right").
             - **One Session**: You are the sole active agent.
-            - **Dropdowns**: If a user says they changed a category but you don't see it, assume the value has updated and trust the user, or ask them to confirm the new value.
+            - **Context Persistence**: Remember that the user might switch tabs. Follow them visually.
             
             Keep responses helpful, concise, and professional.`,
             speechConfig: {
@@ -225,6 +229,9 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                 // --- Spatial Video Streaming (Periodic Screenshots) ---
                 // 1.5s interval for near real-time updates
                 videoIntervalRef.current = setInterval(async () => {
+                     // Check if session is still active
+                     if (!audioContextRef.current) return;
+                     
                      const imageBase64 = await captureScreen();
                      if (imageBase64) {
                          sessionPromise.then(session => {
