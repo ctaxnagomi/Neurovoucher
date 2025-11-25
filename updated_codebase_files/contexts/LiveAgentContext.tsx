@@ -50,6 +50,21 @@ const fillLHDNTool: FunctionDeclaration = {
   }
 };
 
+const navigationTool: FunctionDeclaration = {
+  name: "navigate_app",
+  description: "Navigate to a different page in the application.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      path: { 
+          type: Type.STRING, 
+          description: "The route path to navigate to. Options: '/' (Dashboard), '/voucher' (Generator), '/vouchers' (History), '/lhdn-letter', '/chat', '/editor', '/settings'" 
+      }
+    },
+    required: ["path"]
+  }
+};
+
 export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [connected, setConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -74,16 +89,16 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
         
         // Capture the entire document body for full context
         const canvas = await html2canvas(document.body, { 
-            scale: 0.6, // Moderate scale for balance between readability and performance
+            scale: 0.5, // slightly lower scale for speed (1.5s interval)
             logging: false,
             useCORS: true,
             ignoreElements: (element: Element) => {
                 // Ignore the live agent floating widget itself to prevent infinite mirror effect
-                return element.classList.contains('live-agent-widget');
+                return element.classList.contains('live-agent-widget') || element.classList.contains('ai-focus-overlay');
             }
         });
         
-        const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+        const base64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
         return base64;
     } catch (e) {
         console.error("Screen capture failed", e);
@@ -114,18 +129,21 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
             responseModalities: [Modality.AUDIO],
-            tools: [{ functionDeclarations: [fillVoucherTool, fillLHDNTool] }],
-            systemInstruction: `You are NeuroVoucher's persistent AI Agent.
+            tools: [{ functionDeclarations: [fillVoucherTool, fillLHDNTool, navigationTool] }],
+            systemInstruction: `You are NeuroVoucher's persistent AI Agent with spatial control.
             
             CAPABILITIES:
-            1. **Spatial Awareness**: You receive screenshots of the user's screen every few seconds. You can SEE what form they are looking at (Voucher Generator, LHDN Letter, etc.).
-            2. **Form Filling**: You can physically fill in the forms on the screen using tools. 
-               - If the user is on 'Voucher Generator', use 'fill_voucher_form'.
-               - If the user is on 'LHDN Letter', use 'fill_lhdn_letter'.
+            1. **Spatial Vision**: You receive screenshots of the user's screen every 1.5 seconds. You can SEE the current form state, dropdown values, and navigation.
+            2. **Navigation Control**: You can navigate the user to different pages using 'navigate_app'.
+            3. **Form Filling**: You can physically fill in forms.
+               - Voucher Generator: 'fill_voucher_form'
+               - LHDN Letter: 'fill_lhdn_letter'
             
             BEHAVIOR:
-            - If the user asks you to "fill in this receipt" or "put this info in", LOOK at the screen (image input) to extract details, then CALL the appropriate tool.
-            - Be concise. Keep responses short and helpful.`,
+            - If the user asks "what do you see", describe the *current* active tab and form values visible in the screenshot.
+            - If the user asks to "go to" a page, use 'navigate_app'.
+            - When filling forms, be precise.
+            - Keep responses short and conversational.`,
             speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
             }
@@ -154,6 +172,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                 processorRef.current = processor;
 
                 // --- Spatial Video Streaming (Periodic Screenshots) ---
+                // Increased frequency to 1.5s for better "real-time" feel
                 videoIntervalRef.current = setInterval(async () => {
                      const imageBase64 = await captureScreen();
                      if (imageBase64) {
@@ -166,7 +185,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                              });
                          });
                      }
-                }, 3000); // 3 seconds interval
+                }, 1500); 
             },
             onmessage: async (msg: LiveServerMessage) => {
                 // 1. Handle Tool Calls
@@ -175,10 +194,21 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                         addLog(`Tool Used: ${fc.name}`);
                         
                         if (fc.name === 'fill_voucher_form') {
+                            // Trigger visual highlight for the fields being edited
+                            const fields = Object.keys(fc.args as object);
+                            window.dispatchEvent(new CustomEvent('neuro-ai-highlight', { detail: { fields } }));
                             window.dispatchEvent(new CustomEvent('neuro-fill-voucher', { detail: fc.args }));
                         } 
                         else if (fc.name === 'fill_lhdn_letter') {
+                            const fields = Object.keys(fc.args as object);
+                            window.dispatchEvent(new CustomEvent('neuro-ai-highlight', { detail: { fields } }));
                             window.dispatchEvent(new CustomEvent('neuro-fill-lhdn', { detail: fc.args }));
+                        }
+                        else if (fc.name === 'navigate_app') {
+                            const args = fc.args as any;
+                            if (args.path) {
+                                window.dispatchEvent(new CustomEvent('neuro-navigate', { detail: args.path }));
+                            }
                         }
 
                         // Send success response
@@ -186,7 +216,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                             functionResponses: {
                                 name: fc.name,
                                 id: fc.id,
-                                response: { result: "Action executed on screen." }
+                                response: { result: "Action executed successfully on screen." }
                             }
                         }));
                     }

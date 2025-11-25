@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useRef, ReactNode } from 'react';
 import { getLiveClient } from '../services/geminiService';
 import { createPcmBlob, decodeAudioData } from '../services/audioUtils';
 import { LiveServerMessage, Modality, Type, FunctionDeclaration } from '@google/genai';
@@ -8,6 +8,7 @@ declare const html2canvas: any;
 
 interface LiveAgentContextType {
   connected: boolean;
+  isConnecting: boolean;
   isSpeaking: boolean;
   logs: string[];
   connect: () => Promise<void>;
@@ -17,10 +18,11 @@ interface LiveAgentContextType {
 
 const LiveAgentContext = createContext<LiveAgentContextType | undefined>(undefined);
 
-// Tool Definition: Allow AI to fill form fields
-const fillFormTool: FunctionDeclaration = {
+// --- Tool Definitions ---
+
+const fillVoucherTool: FunctionDeclaration = {
   name: "fill_voucher_form",
-  description: "Fill in information into the voucher form fields. Use this when the user asks to enter data like payee, amount, date, or description.",
+  description: "Fill in information into the Payment Voucher form. Use this when the user is on the Voucher Generator page and asks to enter data.",
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -33,8 +35,39 @@ const fillFormTool: FunctionDeclaration = {
   }
 };
 
+const fillLHDNTool: FunctionDeclaration = {
+  name: "fill_lhdn_letter",
+  description: "Fill in information into the LHDN Explanation Letter form. Use this when the user is on the LHDN Letter Generator page.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      companyName: { type: Type.STRING, description: "Company Name" },
+      regNo: { type: Type.STRING, description: "Registration Number" },
+      reason: { type: Type.STRING, description: "Reason for missing receipts" },
+      yearAssessment: { type: Type.STRING, description: "Year of Assessment (e.g. 2023)" },
+      totalAmount: { type: Type.STRING, description: "Total amount of missing receipts" }
+    }
+  }
+};
+
+const navigationTool: FunctionDeclaration = {
+  name: "navigate_app",
+  description: "Navigate to a different page in the application.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      path: { 
+          type: Type.STRING, 
+          description: "The route path to navigate to. Options: '/' (Dashboard), '/voucher' (Generator), '/vouchers' (History), '/lhdn-letter', '/chat', '/editor', '/settings'" 
+      }
+    },
+    required: ["path"]
+  }
+};
+
 export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [connected, setConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   
@@ -54,11 +87,15 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
     try {
         if (typeof html2canvas === 'undefined') return null;
         
-        // Capture specific root or body
+        // Capture the entire document body for full context
         const canvas = await html2canvas(document.body, { 
-            scale: 0.5, // Low res for speed
+            scale: 0.5, // slightly lower scale for speed (1.5s interval)
             logging: false,
-            useCORS: true 
+            useCORS: true,
+            ignoreElements: (element: Element) => {
+                // Ignore the live agent floating widget itself to prevent infinite mirror effect
+                return element.classList.contains('live-agent-widget') || element.classList.contains('ai-focus-overlay');
+            }
         });
         
         const base64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
@@ -70,10 +107,14 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
   };
 
   const connect = async () => {
-    if (connected) return; // Prevent double connection
+    if (connected || isConnecting) return; // Strict lock
+
+    setIsConnecting(true);
+    addLog("Initializing connection...");
 
     try {
       const client = getLiveClient();
+      // Browser permissions
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
@@ -88,12 +129,21 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
             responseModalities: [Modality.AUDIO],
-            tools: [{ functionDeclarations: [fillFormTool] }],
-            systemInstruction: `You are NeuroVoucher's persistent AI Agent. 
-            You have 'Spatial Awareness' - you can receive screen frames to see what the user is doing. 
-            You can fill in the voucher form using the 'fill_voucher_form' tool.
-            If the user asks to "fill in" data, execute the tool.
-            Be concise, helpful, and friendly.`,
+            tools: [{ functionDeclarations: [fillVoucherTool, fillLHDNTool, navigationTool] }],
+            systemInstruction: `You are NeuroVoucher's persistent AI Agent with spatial control.
+            
+            CAPABILITIES:
+            1. **Spatial Vision**: You receive screenshots of the user's screen every 1.5 seconds. You can SEE the current form state, dropdown values, and navigation.
+            2. **Navigation Control**: You can navigate the user to different pages using 'navigate_app'.
+            3. **Form Filling**: You can physically fill in forms.
+               - Voucher Generator: 'fill_voucher_form'
+               - LHDN Letter: 'fill_lhdn_letter'
+            
+            BEHAVIOR:
+            - If the user asks "what do you see", describe the *current* active tab and form values visible in the screenshot.
+            - If the user asks to "go to" a page, use 'navigate_app'.
+            - When filling forms, be precise.
+            - Keep responses short and conversational.`,
             speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
             }
@@ -101,7 +151,8 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
         callbacks: {
             onopen: () => {
                 setConnected(true);
-                addLog("Live Agent Connected & Listening");
+                setIsConnecting(false);
+                addLog("Live Agent Connected");
                 
                 // --- Audio Streaming ---
                 const source = audioCtx.createMediaStreamSource(stream);
@@ -110,6 +161,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                 processor.onaudioprocess = (e) => {
                     const inputData = e.inputBuffer.getChannelData(0);
                     const pcmBlob = createPcmBlob(inputData);
+                    // Use closure to ensure we use the correct promise
                     sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
                 };
                 
@@ -120,7 +172,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                 processorRef.current = processor;
 
                 // --- Spatial Video Streaming (Periodic Screenshots) ---
-                // Send a frame every 3 seconds so AI has context
+                // Increased frequency to 1.5s for better "real-time" feel
                 videoIntervalRef.current = setInterval(async () => {
                      const imageBase64 = await captureScreen();
                      if (imageBase64) {
@@ -133,28 +185,40 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                              });
                          });
                      }
-                }, 3000);
+                }, 1500); 
             },
             onmessage: async (msg: LiveServerMessage) => {
-                // 1. Handle Tool Calls (Form Filling)
+                // 1. Handle Tool Calls
                 if (msg.toolCall) {
                     for (const fc of msg.toolCall.functionCalls) {
+                        addLog(`Tool Used: ${fc.name}`);
+                        
                         if (fc.name === 'fill_voucher_form') {
-                            addLog(`Executing Tool: Filling Form...`);
-                            
-                            // Dispatch custom event for VoucherGenerator to listen to
-                            const event = new CustomEvent('neuro-fill-form', { detail: fc.args });
-                            window.dispatchEvent(event);
-                            
-                            // Send success response back to model
-                            sessionPromise.then(session => session.sendToolResponse({
-                                functionResponses: {
-                                    name: fc.name,
-                                    id: fc.id,
-                                    response: { result: "Form updated successfully on screen." }
-                                }
-                            }));
+                            // Trigger visual highlight for the fields being edited
+                            const fields = Object.keys(fc.args as object);
+                            window.dispatchEvent(new CustomEvent('neuro-ai-highlight', { detail: { fields } }));
+                            window.dispatchEvent(new CustomEvent('neuro-fill-voucher', { detail: fc.args }));
+                        } 
+                        else if (fc.name === 'fill_lhdn_letter') {
+                            const fields = Object.keys(fc.args as object);
+                            window.dispatchEvent(new CustomEvent('neuro-ai-highlight', { detail: { fields } }));
+                            window.dispatchEvent(new CustomEvent('neuro-fill-lhdn', { detail: fc.args }));
                         }
+                        else if (fc.name === 'navigate_app') {
+                            const args = fc.args as any;
+                            if (args.path) {
+                                window.dispatchEvent(new CustomEvent('neuro-navigate', { detail: args.path }));
+                            }
+                        }
+
+                        // Send success response
+                        sessionPromise.then(session => session.sendToolResponse({
+                            functionResponses: {
+                                name: fc.name,
+                                id: fc.id,
+                                response: { result: "Action executed successfully on screen." }
+                            }
+                        }));
                     }
                 }
 
@@ -176,7 +240,8 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                     nextStartTimeRef.current = startTime + audioBuffer.duration;
                     
                     source.onended = () => {
-                        if (outputContextRef.current && outputContextRef.current.currentTime >= nextStartTimeRef.current) {
+                        // Only set speaking to false if no more audio is queued close by
+                        if (outputContextRef.current && outputContextRef.current.currentTime >= nextStartTimeRef.current - 0.1) {
                             setIsSpeaking(false);
                         }
                     };
@@ -184,13 +249,15 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
             },
             onclose: () => {
                 setConnected(false);
+                setIsConnecting(false);
                 addLog("Session Closed");
-                clearInterval(videoIntervalRef.current);
+                if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
             },
             onerror: (err) => {
                 console.error(err);
                 addLog("Error: " + JSON.stringify(err));
                 setConnected(false);
+                setIsConnecting(false);
             }
         }
       });
@@ -201,10 +268,18 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
       console.error(err);
       addLog("Failed to start session");
       setConnected(false);
+      setIsConnecting(false);
     }
   };
 
   const disconnect = () => {
+    // Stop Intervals
+    if (videoIntervalRef.current) {
+        clearInterval(videoIntervalRef.current);
+        videoIntervalRef.current = null;
+    }
+
+    // Stop Audio Processing
     if (processorRef.current) {
         processorRef.current.disconnect();
         processorRef.current = null;
@@ -213,6 +288,8 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
         inputSourceRef.current.disconnect();
         inputSourceRef.current = null;
     }
+    
+    // Close Audio Contexts
     if (audioContextRef.current) {
         audioContextRef.current.close();
         audioContextRef.current = null;
@@ -221,24 +298,23 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
         outputContextRef.current.close();
         outputContextRef.current = null;
     }
-    if (videoIntervalRef.current) {
-        clearInterval(videoIntervalRef.current);
-        videoIntervalRef.current = null;
-    }
 
+    // Close Session
     if (sessionRef.current) {
-        // Attempt to close properly if API supports it, otherwise connection drops
-        sessionRef.current.then((s: any) => s.close && s.close());
+        sessionRef.current.then((s: any) => {
+             if (s.close) s.close();
+        }).catch((e: any) => console.error("Error closing session", e));
         sessionRef.current = null;
     }
     
     setConnected(false);
+    setIsConnecting(false);
     setIsSpeaking(false);
-    addLog("Disconnected by user");
+    addLog("Disconnected");
   };
 
   return (
-    <LiveAgentContext.Provider value={{ connected, isSpeaking, logs, connect, disconnect, addLog }}>
+    <LiveAgentContext.Provider value={{ connected, isConnecting, isSpeaking, logs, connect, disconnect, addLog }}>
       {children}
     </LiveAgentContext.Provider>
   );

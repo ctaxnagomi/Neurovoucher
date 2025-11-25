@@ -1243,6 +1243,7 @@ export const VoucherGenerator: React.FC = () => {
                         </label>
                         <div className="relative">
                             <NeuroInput 
+                                name="companyName"
                                 value={companyName} 
                                 onChange={(e) => { setCompanyName(e.target.value); handleFieldChange('companyName'); }}
                                 placeholder={PLACEHOLDERS.companyName}
@@ -1255,6 +1256,7 @@ export const VoucherGenerator: React.FC = () => {
                         <label className="block text-sm text-gray-500 mb-2">Registration No</label>
                         <div className="relative">
                             <NeuroInput 
+                                name="companyRegNo"
                                 value={companyRegNo} 
                                 onChange={(e) => { setCompanyRegNo(e.target.value); handleFieldChange('companyRegNo'); }}
                                 placeholder={PLACEHOLDERS.companyRegNo}
@@ -1268,6 +1270,7 @@ export const VoucherGenerator: React.FC = () => {
                         <label className="block text-sm text-gray-500 mb-2">Address</label>
                         <div className="relative">
                             <NeuroTextarea 
+                                name="companyAddress"
                                 rows={3}
                                 value={companyAddress} 
                                 onChange={(e) => { setCompanyAddress(e.target.value); handleFieldChange('companyAddress'); }}
@@ -1284,6 +1287,7 @@ export const VoucherGenerator: React.FC = () => {
                             <label className="block text-xs text-gray-500 mb-1">Tel</label>
                             <div className="relative">
                                 <NeuroInput 
+                                    name="companyTel"
                                     value={companyTel}
                                     onChange={(e) => { setCompanyTel(e.target.value); handleFieldChange('companyTel'); }}
                                     placeholder={PLACEHOLDERS.companyTel}
@@ -1297,6 +1301,7 @@ export const VoucherGenerator: React.FC = () => {
                             <label className="block text-xs text-gray-500 mb-1">Fax</label>
                             <div className="relative">
                                 <NeuroInput 
+                                    name="companyFax"
                                     value={companyFax}
                                     onChange={(e) => { setCompanyFax(e.target.value); handleFieldChange('companyFax'); }}
                                     placeholder={PLACEHOLDERS.companyFax}
@@ -1310,6 +1315,7 @@ export const VoucherGenerator: React.FC = () => {
                             <label className="block text-xs text-gray-500 mb-1">Email</label>
                             <div className="relative">
                                 <NeuroInput 
+                                    name="companyEmail"
                                     value={companyEmail}
                                     onChange={(e) => { setCompanyEmail(e.target.value); handleFieldChange('companyEmail'); }}
                                     placeholder={PLACEHOLDERS.companyEmail}
@@ -1333,6 +1339,7 @@ export const VoucherGenerator: React.FC = () => {
                         <label className="block text-sm text-gray-500 mb-2">Voucher No.</label>
                         <div className="relative">
                             <NeuroInput 
+                                name="voucherNo"
                                 value={voucherNo} 
                                 onChange={(e) => setVoucherNo(e.target.value)} 
                                 placeholder={PLACEHOLDERS.voucherNo}
@@ -1345,6 +1352,7 @@ export const VoucherGenerator: React.FC = () => {
                         <label className="block text-sm text-gray-500 mb-2">Voucher Date</label>
                         <div className="relative">
                             <NeuroInput 
+                                name="date"
                                 type="date" 
                                 value={voucherDate} 
                                 onChange={(e) => { setVoucherDate(e.target.value); handleFieldChange('voucherDate'); }}
@@ -1362,6 +1370,7 @@ export const VoucherGenerator: React.FC = () => {
                         </label>
                         <div className="relative">
                             <NeuroSelect 
+                                name="category"
                                 value={category} 
                                 onChange={(e) => setCategory(e.target.value)}
                                 className={`pr-10 truncate ${getAutoFillClass('category')}`}
@@ -1380,6 +1389,7 @@ export const VoucherGenerator: React.FC = () => {
                         </label>
                         <div className="relative">
                             <NeuroInput 
+                                name="payee"
                                 value={payee} 
                                 onChange={(e) => { setPayee(e.target.value); handleFieldChange('payee'); }}
                                 placeholder={PLACEHOLDERS.payee}
@@ -1394,6 +1404,7 @@ export const VoucherGenerator: React.FC = () => {
                         <label className="block text-sm text-gray-500 mb-2">Payee IC / Company No (Required)</label>
                         <div className="relative">
                             <NeuroInput 
+                                name="payeeIc"
                                 value={payeeIc}
                                 onChange={(e) => { setPayeeIc(e.target.value); handleFieldChange('payeeIc'); }}
                                 placeholder={PLACEHOLDERS.payeeIc}
@@ -1446,6 +1457,7 @@ export const VoucherGenerator: React.FC = () => {
                         </div>
                         <div className="relative">
                             <NeuroTextarea 
+                                name="description"
                                 value={description} 
                                 onChange={(e) => setDescription(e.target.value)} 
                                 placeholder={PLACEHOLDERS.description} 
@@ -1490,6 +1502,7 @@ export const VoucherGenerator: React.FC = () => {
                         <label className="block text-sm text-gray-500 mb-2">Tax Category</label>
                         <div className="relative">
                             <NeuroInput 
+                                name="taxCategory"
                                 value={taxCategory}
                                 onChange={(e) => { setTaxCategory(e.target.value); handleFieldChange('taxCategory'); }}
                                 placeholder={PLACEHOLDERS.taxCategory}
@@ -1566,6 +1579,7 @@ export const VoucherGenerator: React.FC = () => {
                             <div className="w-full md:w-40 relative">
                                 <label className="md:hidden text-xs text-gray-500 mb-1 block">Amount</label>
                                 <NeuroInput 
+                                    name="totalAmount"
                                     type="number" 
                                     placeholder="0.00" 
                                     value={item.amount}
