@@ -1,5 +1,5 @@
 {
-  "name": "v.0.1.25-neurovoucher-(deckergui)",
+  "name": "v.0.1.27-neurovoucher-(deckergui)",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -16,7 +16,8 @@
     "react-dom": "^19.2.0",
     "recharts": "^3.5.0",
     "xlsx": "latest",
-    "jspdf": "2.5.1"
+    "jspdf": "2.5.1",
+    "html2canvas": "1.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
