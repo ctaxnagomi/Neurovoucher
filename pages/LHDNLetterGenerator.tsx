@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroTextarea, NeuroBadge, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, extractLetterhead } from '../services/geminiService';
-import { Download, Copy, Sparkles, Printer, FileCheck, ShieldCheck, HelpCircle, ScrollText, Info, ListChecks, AlertTriangle, XCircle, ScanLine, Loader2, FileText } from 'lucide-react';
+import { Download, Copy, Sparkles, FileCheck, HelpCircle, ScrollText, Info, AlertTriangle, XCircle, ScanLine, Loader2 } from 'lucide-react';
 import { jsPDF } from "jspdf";
 
 export const CHECKLIST_ITEMS = [
@@ -492,7 +492,7 @@ ${companyName}`;
                                     <li>Prepared with complete details of the transaction</li>
                                     <li>Cross-referenced with our bank statements</li>
                                     <li>Signed and approved by appropriate management personnel</li>
-                                    <li>Numbered sequentially ({voucherStart} through ${voucherEnd})</li>
+                                    <li>Numbered sequentially (${voucherStart} through ${voucherEnd})</li>
                                 </ul>
 
                                 <div className="font-bold mt-3">2. Bank Statements (Attached)</div>

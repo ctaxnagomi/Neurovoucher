@@ -16,7 +16,7 @@ export interface Voucher {
 
 export enum GeminiModel {
   CHAT_PRO = 'gemini-3-pro-preview',
-  FAST_LITE = 'gemini-2.5-flash-lite-latest',
+  FAST_LITE = 'gemini-2.5-flash',
   TTS = 'gemini-2.5-flash-preview-tts',
   LIVE = 'gemini-2.5-flash-native-audio-preview-09-2025',
   IMAGE_EDIT = 'gemini-2.5-flash-image',

@@ -2,7 +2,9 @@ import React from 'react';
 
 // Neumorphic Shadow Utilities
 const shadowOuter = "shadow-[9px_9px_16px_rgba(163,177,198,0.6),-9px_-9px_16px_rgba(255,255,255,0.5)]";
-const shadowInner = "shadow-[inset_6px_6px_10px_rgba(163,177,198,0.6),inset_-6px_-6px_10px_rgba(255,255,255,0.5)]";
+// User-provided specific input style
+const inputStyle = "bg-[#e0e5ec] text-gray-700 w-full py-3 px-4 rounded-xl shadow-[inset_6px_6px_10px_rgba(163,177,198,0.6),inset_-6px_-6px_10px_rgba(255,255,255,0.5)] outline-none focus:ring-2 focus:ring-blue-400/30 transition-all placeholder-gray-400";
+
 const bgBase = "bg-[#e0e5ec]";
 const textPrimary = "text-gray-700";
 
@@ -18,7 +20,10 @@ export const NeuroCard: React.FC<{ children: React.ReactNode; className?: string
 export const NeuroButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }> = ({ 
   children, className = "", active = false, ...props 
 }) => {
-  const activeClass = active ? shadowInner : `${shadowOuter} hover:translate-y-[-2px] active:translate-y-[1px] transition-all`;
+  const activeClass = active 
+    ? "shadow-[inset_6px_6px_10px_rgba(163,177,198,0.6),inset_-6px_-6px_10px_rgba(255,255,255,0.5)]" 
+    : `${shadowOuter} hover:translate-y-[-2px] active:translate-y-[1px] transition-all`;
+    
   return (
     <button 
       className={`${bgBase} ${textPrimary} font-semibold py-3 px-6 rounded-xl ${activeClass} active:shadow-[inset_4px_4px_8px_rgba(163,177,198,0.6),inset_-4px_-4px_8px_rgba(255,255,255,0.5)] ${className}`}
@@ -31,15 +36,15 @@ export const NeuroButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>
 
 export const NeuroInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => (
   <input 
-    className={`${bgBase} ${textPrimary} w-full py-3 px-5 rounded-xl border border-gray-200/50 ${shadowInner} outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100/50 transition-all placeholder-gray-400/70 ${props.className}`}
+    className={`${inputStyle} ${props.className || ''}`}
     {...props}
   />
 );
 
 export const NeuroSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) => (
-  <div className="relative">
+  <div className="relative w-full">
     <select 
-      className={`${bgBase} ${textPrimary} w-full py-3 px-5 rounded-xl border border-gray-200/50 ${shadowInner} outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100/50 transition-all appearance-none cursor-pointer ${props.className}`}
+      className={`${inputStyle} appearance-none cursor-pointer ${props.className || ''}`}
       {...props}
     >
         {props.children}
@@ -52,7 +57,7 @@ export const NeuroSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>
 
 export const NeuroTextarea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> = (props) => (
   <textarea 
-    className={`${bgBase} ${textPrimary} w-full py-3 px-5 rounded-xl border border-gray-200/50 ${shadowInner} outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100/50 transition-all placeholder-gray-400/70 ${props.className}`}
+    className={`${inputStyle} ${props.className || ''}`}
     {...props}
   />
 );
