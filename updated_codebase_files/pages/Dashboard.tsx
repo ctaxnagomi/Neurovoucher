@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { NeuroCard, NeuroBadge } from '../components/NeuroComponents';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
-import { Timer, Zap, ShieldCheck, Info } from 'lucide-react';
+import { Timer, Zap, ShieldCheck, Info, Mic } from 'lucide-react';
 
 const weeklyData = [
   { name: 'Mon', amt: 2400, type: 10, freq: 5, tax: 2100 },
@@ -61,6 +61,23 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      {/* Feature Guide: Live Agent */}
+      <div 
+        onClick={() => navigate('/live')}
+        className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-6 shadow-lg relative overflow-hidden group cursor-pointer transition-transform hover:scale-[1.01]"
+      >
+          <div className="absolute right-0 top-0 h-full w-1/3 bg-white/10 skew-x-12 transform translate-x-12"></div>
+          <div className="flex items-center gap-4 relative z-10">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm animate-pulse">
+                  <Mic className="text-white" size={24} />
+              </div>
+              <div className="text-white">
+                  <h3 className="text-lg font-bold">Activate Live Agent</h3>
+                  <p className="text-xs text-blue-100 opacity-90">Hands-free navigation, screen-aware form filling, and real-time guidance. Tap here to start.</p>
+              </div>
+          </div>
+      </div>
+
       {/* Top Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <NeuroCard>

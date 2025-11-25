@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useRef, ReactNode, useEffect } from 'react';
 import { getLiveClient } from '../services/geminiService';
 import { createPcmBlob, decodeAudioData } from '../services/audioUtils';
 import { LiveServerMessage, Modality, Type, FunctionDeclaration } from '@google/genai';
@@ -14,6 +14,7 @@ interface LiveAgentContextType {
   connect: () => Promise<void>;
   disconnect: () => void;
   addLog: (msg: string) => void;
+  sendContextInfo: (text: string) => void;
 }
 
 const LiveAgentContext = createContext<LiveAgentContextType | undefined>(undefined);
@@ -129,8 +130,9 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
         if (typeof html2canvas === 'undefined') return null;
         
         // Capture the entire document body for full context
+        // Optimized settings for speed
         const canvas = await html2canvas(document.body, { 
-            scale: 0.5, // slightly lower scale for speed (1.5s interval)
+            scale: 0.5, // 0.5 scale for performance vs clarity balance
             logging: false,
             useCORS: true,
             ignoreElements: (element: Element) => {
@@ -139,12 +141,18 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
             }
         });
         
-        const base64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+        const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
         return base64;
     } catch (e) {
         console.error("Screen capture failed", e);
         return null;
     }
+  };
+
+  const sendContextInfo = (text: string) => {
+     // NOTE: The current Gemini Live API handles 'text' input mainly for user turns.
+     // We rely on the system knowing the context via screen capture + tool use confirmation.
+     addLog(`Context Update: ${text}`);
   };
 
   const connect = async () => {
@@ -173,21 +181,21 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
             tools: [{ functionDeclarations: [fillVoucherTool, addItemTool, downloadTool, fillLHDNTool, navigationTool] }],
             systemInstruction: `You are NeuroVoucher's Compliance Officer & Live Agent.
             
-            GOAL: Ensure the user's voucher is 100% Complete and Compliant.
+            GOAL: Help the user complete vouchers and forms accurately.
             
-            YOUR CAPABILITIES:
-            1. **Spatial Vision**: You see the user's screen every 1.5s. You can see the "Compliance Progress" bar.
-            2. **Full Form Control**: You can fill ANY field (Company, Voucher, Lost Receipt) using 'fill_voucher_form'.
-            3. **Add Items**: Use 'add_voucher_item' to add new rows.
-            4. **Download**: Use 'download_voucher_pdf' when the user is ready.
+            CAPABILITIES:
+            1. **Vision**: You receive a screen capture every 1.5 seconds. You can see what the user sees, including form values and dropdowns.
+            2. **Navigation**: If the user asks to go to a page, use 'navigate_app'.
+            3. **Form Filling**: Use 'fill_voucher_form' or 'fill_lhdn_letter' to update fields.
+            4. **Progress**: Monitor the "Compliance Progress" bar visually.
             
             BEHAVIOR:
-            - **Drive Progress**: Look at the "Compliance Progress" on screen. If it's not 100%, tell the user what is missing (e.g., "You need to upload a company logo" or "Please upload a receipt").
-            - **Auto-Fill**: If the user provides info verbally, fill it immediately.
-            - **Checklist**: Remind them to upload a Company Logo and Receipt Image if missing.
-            - **Navigation**: Use 'navigate_app' if they want to go elsewhere.
+            - **Be Proactive**: If you see missing fields (marked red), ask for them.
+            - **Spatial Awareness**: Refer to elements by their location if needed ("The box on the right").
+            - **One Session**: You are the sole active agent.
+            - **Dropdowns**: If a user says they changed a category but you don't see it, assume the value has updated and trust the user, or ask them to confirm the new value.
             
-            Keep responses helpful, concise, and focused on getting that progress bar to 100%.`,
+            Keep responses helpful, concise, and professional.`,
             speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
             }
@@ -205,7 +213,6 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                 processor.onaudioprocess = (e) => {
                     const inputData = e.inputBuffer.getChannelData(0);
                     const pcmBlob = createPcmBlob(inputData);
-                    // Use closure to ensure we use the correct promise
                     sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
                 };
                 
@@ -216,7 +223,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                 processorRef.current = processor;
 
                 // --- Spatial Video Streaming (Periodic Screenshots) ---
-                // Increased frequency to 1.5s for better "real-time" feel
+                // 1.5s interval for near real-time updates
                 videoIntervalRef.current = setInterval(async () => {
                      const imageBase64 = await captureScreen();
                      if (imageBase64) {
@@ -307,6 +314,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                 addLog("Error: " + JSON.stringify(err));
                 setConnected(false);
                 setIsConnecting(false);
+                if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
             }
         }
       });
@@ -363,7 +371,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
   };
 
   return (
-    <LiveAgentContext.Provider value={{ connected, isConnecting, isSpeaking, logs, connect, disconnect, addLog }}>
+    <LiveAgentContext.Provider value={{ connected, isConnecting, isSpeaking, logs, connect, disconnect, addLog, sendContextInfo }}>
       {children}
     </LiveAgentContext.Provider>
   );

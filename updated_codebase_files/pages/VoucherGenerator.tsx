@@ -209,11 +209,8 @@ export const VoucherGenerator: React.FC = () => {
     if (companyLogo) score += weightPerSection;
 
     // 5. Receipt/Evidence (20%)
-    // Either a receipt was extracted (extractedData existed at some point, difficult to track persistent state here, assume manual entry for now) 
-    // OR Lost Reason is filled
     if (lostReason || (evidenceRef && evidenceType)) score += weightPerSection;
-    // Partial score for just filling receipt details manually without 'Lost Reason'
-    else if (items.length > 0 && payee) score += (weightPerSection / 2); // Assume receipt entered manually counts partially
+    else if (items.length > 0 && payee) score += (weightPerSection / 2); 
 
     setProgress(Math.min(100, Math.round(score)));
   }, [companyName, companyRegNo, companyAddress, payee, voucherDate, voucherNo, description, items, companyLogo, lostReason, evidenceRef, evidenceType]);
@@ -464,9 +461,6 @@ export const VoucherGenerator: React.FC = () => {
   };
 
   // --- Handlers from Original File (Receipt Scan, Company Scan, PDF, etc.) ---
-  // Re-using logic but omitting bulky repetitive code for brevity if not modified, 
-  // but for XML output I must provide FULL content.
-  
   const shouldUpdate = (currentVal: string, fieldKey?: string, placeholder?: string) => {
     if (fieldKey && autoFilledFields.has(fieldKey)) return true;
     const val = (currentVal || '').trim();
@@ -1004,11 +998,11 @@ export const VoucherGenerator: React.FC = () => {
                             <div className="hidden md:block text-gray-400 font-mono font-bold text-sm w-8">{index + 1}.</div>
                             <div className="w-full md:flex-1">
                                 <label className="md:hidden text-xs text-gray-500 mb-1 block">Description</label>
-                                <NeuroInput value={item.description} onChange={(e) => updateItem(item.id, 'description', e.target.value)} className={WHITE_INPUT_THEME} />
+                                <NeuroInput name={`item-${item.id}-description`} value={item.description} onChange={(e) => updateItem(item.id, 'description', e.target.value)} className={WHITE_INPUT_THEME} />
                             </div>
                             <div className="w-full md:w-40 relative">
                                 <label className="md:hidden text-xs text-gray-500 mb-1 block">Amount</label>
-                                <NeuroInput type="number" value={item.amount} onChange={(e) => updateItem(item.id, 'amount', e.target.value)} className={`text-right ${getAutoFillClass(`item-${item.id}-amount`)}`} />
+                                <NeuroInput name={`item-${item.id}-amount`} type="number" value={item.amount} onChange={(e) => updateItem(item.id, 'amount', e.target.value)} className={`text-right ${getAutoFillClass(`item-${item.id}-amount`)}`} />
                             </div>
                             <button onClick={() => deleteItem(item.id)} className="text-gray-400 hover:text-red-600 p-2"><Trash2 size={20} /></button>
                         </div>

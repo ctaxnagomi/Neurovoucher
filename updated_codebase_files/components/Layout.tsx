@@ -7,9 +7,9 @@ import { useLiveAgent } from '../contexts/LiveAgentContext';
 const SidebarItem = ({ to, icon: Icon, label, extra }: { to: string; icon: any; label: string, extra?: React.ReactNode }) => (
   <NavLink to={to} className={({ isActive }) => `block mb-4 no-underline`}>
     {({ isActive }) => (
-      <NeuroButton active={isActive} className="w-full flex items-center gap-3 justify-start relative">
-        <Icon size={20} />
-        <span className="flex-1 text-left">{label}</span>
+      <NeuroButton active={isActive} className="w-full flex items-center gap-3 justify-start relative group">
+        <Icon size={20} className={isActive ? 'text-blue-600' : 'text-gray-500'} />
+        <span className={`flex-1 text-left ${isActive ? 'font-bold text-gray-700' : 'text-gray-600'}`}>{label}</span>
         {extra}
       </NeuroButton>
     )}
@@ -26,7 +26,8 @@ const AIFocusOverlay = () => {
 
             fields.forEach(field => {
                 // Find element by name attribute
-                const el = document.querySelector(`[name="${field}"]`);
+                // Support finding dynamic items like 'item-123-amount' or just 'description'
+                const el = document.querySelector(`[name="${field}"]`) || document.querySelector(`[data-name="${field}"]`);
                 if (el) {
                     newTargets.push({
                         rect: el.getBoundingClientRect(),
@@ -61,8 +62,8 @@ const AIFocusOverlay = () => {
                     }}
                     className="absolute border-2 border-green-500 rounded-lg shadow-[0_0_15px_rgba(34,197,94,0.5)] transition-all duration-300 animate-pulse"
                 >
-                    <div className="absolute -top-6 left-0 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-t-md flex items-center gap-1">
-                        <Cpu size={10} /> AI WRITING
+                    <div className="absolute -top-6 left-0 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-t-md flex items-center gap-1 shadow-sm">
+                        <Cpu size={10} /> AI WRITING: {t.label}
                     </div>
                 </div>
             ))}
@@ -100,7 +101,7 @@ const FloatingAgentWidget = () => {
                         <span className={`w-2.5 h-2.5 rounded-full ${isSpeaking ? 'bg-blue-500 animate-bounce' : 'bg-green-500 animate-pulse'}`}></span>
                         <span className="text-xs font-bold text-gray-600 uppercase">Live Agent</span>
                     </div>
-                    <button onClick={() => navigate('/live')} className="text-gray-400 hover:text-blue-500">
+                    <button onClick={() => navigate('/live')} className="text-gray-400 hover:text-blue-500" title="Full Screen View">
                         <Maximize2 size={14} />
                     </button>
                 </div>
@@ -119,7 +120,7 @@ const FloatingAgentWidget = () => {
                         </div>
                     ) : (
                         <div className="flex items-center gap-2 text-xs text-gray-400 font-medium">
-                            <Monitor size={14} /> Watching...
+                            <Monitor size={14} /> Watching Screen...
                         </div>
                     )}
                 </div>
@@ -144,9 +145,19 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       {/* Sidebar */}
       <aside className="w-full md:w-64 flex-shrink-0">
         <NeuroCard className="h-full sticky top-8 flex flex-col z-20">
-          <div className="mb-8 text-center">
+          <div className="mb-8 text-center relative">
              <h1 className="text-2xl font-bold text-gray-700 tracking-tighter">NEURO<span className="text-blue-500">VOUCHER</span></h1>
              <p className="text-xs text-gray-400 mt-1">AI-Powered Finance</p>
+             
+             {/* Global Active Indicator if Connected */}
+             {connected && (
+                 <div className="absolute top-0 right-0 transform translate-x-2 -translate-y-2">
+                     <span className="flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                     </span>
+                 </div>
+             )}
           </div>
           
           <nav className="flex-1">
@@ -156,20 +167,15 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <SidebarItem to="/lhdn-letter" icon={ScrollText} label="LHDN Letter" />
             <SidebarItem to="/chat" icon={MessageSquare} label="AI Advisor" />
             
-            {/* Live Agent Item with requested Indicators */}
+            {/* Live Agent Item with requested Visual Indicator */}
             <SidebarItem 
                 to="/live" 
                 icon={Mic} 
                 label="Live Agent" 
                 extra={
-                    <div className="group relative ml-auto">
-                        <div className={`w-3 h-3 rounded-full shadow-inner border border-white/50 transition-colors duration-500 ${connected ? 'bg-green-500 animate-pulse' : 'bg-red-400'}`}></div>
-                        
-                        {/* Hover Tooltip as requested */}
-                        <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-gray-800 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none shadow-xl">
-                            {connected ? 'Live Agent is Live' : 'Agent Offline'}
-                            <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-gray-800 rotate-45"></div>
-                        </div>
+                    <div className="ml-auto flex items-center gap-2">
+                        {connected && <span className="text-[10px] font-bold text-green-600 animate-pulse">ON</span>}
+                        <div className={`w-2.5 h-2.5 rounded-full shadow-inner border border-white/50 transition-colors duration-500 ${connected ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-400'}`}></div>
                     </div>
                 }
             />
