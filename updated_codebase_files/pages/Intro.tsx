@@ -19,7 +19,9 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
   const isDraggingRef = useRef(false);
   const previousMouseXRef = useRef(0);
   const globeRef = useRef<THREE.Group | null>(null);
-  const targetRPM = 15;
+  
+  // Updated Target RPM for 150 threshold
+  const targetRPM = 150;
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -103,9 +105,10 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
       const delta = clientX - previousMouseXRef.current;
       
       // Add to velocity (Sensitivity)
-      velocityRef.current += delta * 0.005;
+      // Tuned so a fast swipe adds significant velocity
+      velocityRef.current += delta * 0.005; 
       
-      // Cap max velocity
+      // Cap max velocity (0.8 rad/frame approx 450 RPM max)
       if (velocityRef.current > 0.8) velocityRef.current = 0.8;
       if (velocityRef.current < -0.8) velocityRef.current = -0.8;
 
@@ -120,12 +123,12 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
     const handleMotion = (event: DeviceMotionEvent) => {
       if (!event.rotationRate) return;
       
-      // Use rotation rate around Y axis (beta/alpha depending on orientation, mostly gamma for handheld spin)
-      // Simplifying: Check overall magnitude of shake/twist
+      // Calculate shake magnitude
       const magnitude = Math.abs(event.rotationRate.beta || 0) + Math.abs(event.rotationRate.gamma || 0);
       
-      if (magnitude > 100) { // Threshold for "shake/spin"
-         velocityRef.current += 0.05; 
+      if (magnitude > 100) { 
+         // Increased impulse to make 150 RPM achievable via vigorous shaking
+         velocityRef.current += 0.15; 
       }
     };
 
@@ -143,40 +146,39 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
 
     // --- Animation Loop ---
     let animationId: number;
-    let unlocked = false; // Local var for the loop
+    let unlocked = false;
 
     const animate = () => {
       animationId = requestAnimationFrame(animate);
 
       if (globeGroup) {
-        // Apply Rotation
         globeGroup.rotation.y += velocityRef.current;
         
-        // Idle animation (slow vertical tilt)
+        // Idle bobbing
         globeGroup.rotation.x = Math.sin(Date.now() * 0.001) * 0.1;
       }
 
       // Physics: Friction
       if (!isDraggingRef.current) {
-        velocityRef.current *= 0.98; // Decay
+        // Decay factor: 0.97 means it slows down reasonably fast, requiring active input
+        velocityRef.current *= 0.97; 
       }
 
       // Calculate RPM
-      // velocity is radians per frame. @60fps: rads/sec = vel * 60. RPM = (rads/sec / 2PI) * 60
+      // RPM = (rads_per_sec / 2PI) * 60
+      // rads_per_sec = velocityRef.current * 60 (approx at 60fps)
       const currentRPM = Math.abs((velocityRef.current * 60 * 60) / (2 * Math.PI));
       setRpm(Math.round(currentRPM));
 
-      // Check Success Condition
       if (currentRPM >= targetRPM && !unlocked) {
         unlocked = true;
         setIsUnlocked(true);
         
-        // Stop accepting input
+        // Disable inputs
         window.removeEventListener('mousedown', onMouseDown);
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('touchmove', onMouseMove);
 
-        // Success Sequence
         triggerSuccessSequence(globeGroup, camera);
       }
 
@@ -262,7 +264,7 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
                 {/* Neumorphic Circle */}
                 <div className="absolute inset-0 rounded-full border-8 border-gray-200/50 shadow-[inset_4px_4px_8px_rgba(163,177,198,0.6),inset_-4px_-4px_8px_rgba(255,255,255,0.5)]"></div>
                 
-                {/* Progress Arc (Simplified as opacity for this demo) */}
+                {/* Progress Arc */}
                 <div className="absolute inset-0 rounded-full border-8 border-blue-500 transition-all duration-100"
                      style={{ 
                          clipPath: `inset(${100 - Math.min(100, (rpm / targetRPM) * 100)}% 0 0 0)`,
