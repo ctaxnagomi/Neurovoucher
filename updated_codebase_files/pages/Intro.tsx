@@ -20,15 +20,15 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
   const previousMouseXRef = useRef(0);
   const globeRef = useRef<THREE.Group | null>(null);
   
-  // Updated Target RPM for 150 threshold
-  const targetRPM = 150;
+  // Updated Target RPM to 800
+  const targetRPM = 800;
 
   useEffect(() => {
     if (!mountRef.current) return;
 
     // --- Scene Setup ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#e0e5ec'); // Neumorphic bg
+    scene.background = new THREE.Color('#e0e5ec');
     scene.fog = new THREE.Fog('#e0e5ec', 10, 50);
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -43,7 +43,7 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
-    const pointLight = new THREE.PointLight(0x3b82f6, 2, 100); // Blue tint
+    const pointLight = new THREE.PointLight(0x3b82f6, 2, 100);
     pointLight.position.set(10, 10, 10);
     scene.add(pointLight);
 
@@ -51,11 +51,10 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
     pointLight2.position.set(-10, -10, 10);
     scene.add(pointLight2);
 
-    // --- Globe Construction (Modular) ---
+    // --- Globe Construction ---
     const globeGroup = new THREE.Group();
     globeRef.current = globeGroup;
 
-    // 1. Wireframe Icosahedron (Outer)
     const geometry = new THREE.IcosahedronGeometry(8, 2);
     const wireframeMaterial = new THREE.MeshBasicMaterial({ 
       color: 0x4a5568, 
@@ -66,8 +65,6 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
     const sphere = new THREE.Mesh(geometry, wireframeMaterial);
     globeGroup.add(sphere);
 
-    // 2. Nodes (Vertices)
-    const positions = geometry.attributes.position.array;
     const particlesGeo = new THREE.BufferGeometry();
     particlesGeo.setAttribute('position', geometry.attributes.position);
     const particlesMat = new THREE.PointsMaterial({
@@ -79,7 +76,6 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
     const particles = new THREE.Points(particlesGeo, particlesMat);
     globeGroup.add(particles);
 
-    // 3. Inner Core
     const coreGeo = new THREE.IcosahedronGeometry(6, 1);
     const coreMat = new THREE.MeshPhongMaterial({
       color: 0xe0e5ec,
@@ -104,13 +100,12 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const delta = clientX - previousMouseXRef.current;
       
-      // Add to velocity (Sensitivity)
-      // Tuned so a fast swipe adds significant velocity
-      velocityRef.current += delta * 0.005; 
+      // Increased sensitivity for 800 RPM
+      velocityRef.current += delta * 0.02; 
       
-      // Cap max velocity (0.8 rad/frame approx 450 RPM max)
-      if (velocityRef.current > 0.8) velocityRef.current = 0.8;
-      if (velocityRef.current < -0.8) velocityRef.current = -0.8;
+      // Increased max velocity cap (~1150 RPM max)
+      if (velocityRef.current > 2.0) velocityRef.current = 2.0;
+      if (velocityRef.current < -2.0) velocityRef.current = -2.0;
 
       previousMouseXRef.current = clientX;
     };
@@ -122,13 +117,11 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
     // --- Gyroscope Logic ---
     const handleMotion = (event: DeviceMotionEvent) => {
       if (!event.rotationRate) return;
-      
-      // Calculate shake magnitude
       const magnitude = Math.abs(event.rotationRate.beta || 0) + Math.abs(event.rotationRate.gamma || 0);
       
-      if (magnitude > 100) { 
-         // Increased impulse to make 150 RPM achievable via vigorous shaking
-         velocityRef.current += 0.15; 
+      if (magnitude > 150) { 
+         // Stronger impulse for shake
+         velocityRef.current += 0.5; 
       }
     };
 
@@ -153,20 +146,14 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
 
       if (globeGroup) {
         globeGroup.rotation.y += velocityRef.current;
-        
-        // Idle bobbing
         globeGroup.rotation.x = Math.sin(Date.now() * 0.001) * 0.1;
       }
 
-      // Physics: Friction
       if (!isDraggingRef.current) {
-        // Decay factor: 0.97 means it slows down reasonably fast, requiring active input
-        velocityRef.current *= 0.97; 
+        // Reduced friction slightly to maintain high RPM longer
+        velocityRef.current *= 0.985; 
       }
 
-      // Calculate RPM
-      // RPM = (rads_per_sec / 2PI) * 60
-      // rads_per_sec = velocityRef.current * 60 (approx at 60fps)
       const currentRPM = Math.abs((velocityRef.current * 60 * 60) / (2 * Math.PI));
       setRpm(Math.round(currentRPM));
 
@@ -174,7 +161,6 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
         unlocked = true;
         setIsUnlocked(true);
         
-        // Disable inputs
         window.removeEventListener('mousedown', onMouseDown);
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('touchmove', onMouseMove);
@@ -187,7 +173,6 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
 
     animate();
 
-    // --- Cleanup ---
     return () => {
       cancelAnimationFrame(animationId);
       window.removeEventListener('mousedown', onMouseDown);
@@ -206,7 +191,7 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
   }, []);
 
   const triggerSuccessSequence = (globe: THREE.Group, camera: THREE.Camera) => {
-    // 1. Zoom Camera In
+    // 1. Zoom Camera
     const zoomInterval = setInterval(() => {
         camera.position.z -= 0.5;
         if (camera.position.z <= 0) {
@@ -214,30 +199,28 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
         }
     }, 16);
 
-    // 2. Expand/Explode Globe
+    // 2. Explode Globe
     let scale = 1;
     const expandInterval = setInterval(() => {
         scale += 0.5;
         globe.scale.set(scale, scale, scale);
-        globe.rotation.y += 0.2; // Fast spin
-        if (scale > 20) {
+        globe.rotation.y += 0.2; 
+        if (scale > 30) {
             clearInterval(expandInterval);
             setShowText(true);
+            // Longer timeout to read the text
             setTimeout(() => {
                 onComplete();
-            }, 3000);
+            }, 4500); 
         }
     }, 16);
   };
 
   const requestGyro = () => {
-      // iOS 13+ permission request
       if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
           (DeviceMotionEvent as any).requestPermission()
               .then((response: string) => {
-                  if (response === 'granted') {
-                      setPermissionGranted(true);
-                  }
+                  if (response === 'granted') setPermissionGranted(true);
               })
               .catch(console.error);
       } else {
@@ -247,24 +230,18 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-[#e0e5ec] overflow-hidden flex flex-col items-center justify-center">
-      
-      {/* 3D Canvas Container */}
       <div ref={mountRef} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
 
-      {/* UI Overlay */}
+      {/* RPM Gauge UI */}
       <div className={`pointer-events-none relative z-10 flex flex-col items-center justify-center h-full transition-opacity duration-500 ${isUnlocked ? 'opacity-0' : 'opacity-100'}`}>
-         
          <div className="mb-96 flex flex-col items-center">
              <div className="text-gray-400 text-xs font-bold uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                 <Move size={14} className="animate-pulse"/> Swipe or Shake to Spin
              </div>
              
-             {/* RPM Gauge */}
              <div className="relative w-48 h-48 flex items-center justify-center">
-                {/* Neumorphic Circle */}
                 <div className="absolute inset-0 rounded-full border-8 border-gray-200/50 shadow-[inset_4px_4px_8px_rgba(163,177,198,0.6),inset_-4px_-4px_8px_rgba(255,255,255,0.5)]"></div>
                 
-                {/* Progress Arc */}
                 <div className="absolute inset-0 rounded-full border-8 border-blue-500 transition-all duration-100"
                      style={{ 
                          clipPath: `inset(${100 - Math.min(100, (rpm / targetRPM) * 100)}% 0 0 0)`,
@@ -284,11 +261,10 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
                  <div className="h-1 w-32 bg-gray-300 rounded-full overflow-hidden">
                      <div className="h-full bg-blue-500 transition-all duration-100 ease-out" style={{ width: `${Math.min(100, (rpm / targetRPM) * 100)}%` }}></div>
                  </div>
-                 <p className="text-[10px] text-center text-gray-400 mt-2">Reach {targetRPM} RPM to Initialize</p>
+                 <p className="text-[10px] text-center text-gray-400 mt-2">Target: {targetRPM} RPM</p>
              </div>
          </div>
 
-         {/* Mobile Gyro Button */}
          <div className="absolute bottom-10 pointer-events-auto">
              <button onClick={requestGyro} className="text-[10px] text-blue-500 opacity-50 hover:opacity-100 transition-opacity">
                 Enable Gyroscope
@@ -296,20 +272,18 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
          </div>
       </div>
 
-      {/* Success Text Animation */}
-      {showText && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#e0e5ec]">
-              <div className="animate-[fadeInUp_1s_ease-out_forwards]">
-                  <h1 className="text-4xl md:text-6xl font-bold text-gray-700 tracking-tighter mb-2 text-center">
-                      NEURO<span className="text-blue-500">VOUCHER</span>
-                  </h1>
-                  <div className="h-1 w-24 bg-blue-500 mx-auto rounded-full mb-6"></div>
-                  <p className="text-gray-500 font-mono text-sm tracking-widest text-center animate-pulse">
-                      DEVELOPED BY RIKAYU WILZAM
-                  </p>
-              </div>
+      {/* Success Text - Slow Fade In */}
+      <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none transition-all duration-[2000ms] ease-out ${showText ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
+          <div className="text-center">
+              <h1 className="text-4xl md:text-6xl font-bold text-gray-700 tracking-tighter mb-4">
+                  NEURO<span className="text-blue-500">VOUCHER</span>
+              </h1>
+              <div className="h-1 w-24 bg-blue-500 mx-auto rounded-full mb-8 shadow-lg shadow-blue-200"></div>
+              <p className="text-gray-500 font-mono text-sm tracking-[0.3em] uppercase animate-pulse">
+                  Developed by Rikayu Wilzam
+              </p>
           </div>
-      )}
+      </div>
     </div>
   );
 };
