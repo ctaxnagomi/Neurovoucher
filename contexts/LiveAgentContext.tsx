@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useRef, ReactNode, useEffect } from 'react';
 import { getLiveClient } from '../services/geminiService';
 import { createPcmBlob, decodeAudioData } from '../services/audioUtils';
 import { LiveServerMessage, Modality, Type, FunctionDeclaration } from '@google/genai';
@@ -14,6 +14,7 @@ interface LiveAgentContextType {
   connect: () => Promise<void>;
   disconnect: () => void;
   addLog: (msg: string) => void;
+  sendContextInfo: (text: string) => void;
 }
 
 const LiveAgentContext = createContext<LiveAgentContextType | undefined>(undefined);
@@ -124,13 +125,17 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
   const addLog = (msg: string) => setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 10));
 
   // --- Spatial Feature: Capture Screen ---
+  // Captures the full screen while ignoring the agent widget to prevent visual loops
   const captureScreen = async () => {
     try {
-        if (typeof html2canvas === 'undefined') return null;
+        if (typeof html2canvas === 'undefined') {
+            console.warn("html2canvas not loaded");
+            return null;
+        }
         
         // Capture the entire document body for full context
         const canvas = await html2canvas(document.body, { 
-            scale: 0.5, // slightly lower scale for speed (1.5s interval)
+            scale: 0.5, // 0.5 scale for performance vs clarity balance
             logging: false,
             useCORS: true,
             ignoreElements: (element: Element) => {
@@ -139,7 +144,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
             }
         });
         
-        const base64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+        const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
         return base64;
     } catch (e) {
         console.error("Screen capture failed", e);
@@ -147,8 +152,15 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
     }
   };
 
+  const sendContextInfo = (text: string) => {
+     addLog(`Context Update: ${text}`);
+  };
+
   const connect = async () => {
-    if (connected || isConnecting) return; // Strict lock
+    if (connected || isConnecting) {
+        console.warn("Session already active or connecting");
+        return;
+    }
 
     setIsConnecting(true);
     addLog("Initializing connection...");
@@ -173,21 +185,21 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
             tools: [{ functionDeclarations: [fillVoucherTool, addItemTool, downloadTool, fillLHDNTool, navigationTool] }],
             systemInstruction: `You are NeuroVoucher's Compliance Officer & Live Agent.
             
-            GOAL: Ensure the user's voucher is 100% Complete and Compliant.
+            GOAL: Help the user complete vouchers and forms accurately.
             
-            YOUR CAPABILITIES:
-            1. **Spatial Vision**: You see the user's screen every 1.5s. You can see the "Compliance Progress" bar.
-            2. **Full Form Control**: You can fill ANY field (Company, Voucher, Lost Receipt) using 'fill_voucher_form'.
-            3. **Add Items**: Use 'add_voucher_item' to add new rows.
-            4. **Download**: Use 'download_voucher_pdf' when the user is ready.
+            CAPABILITIES:
+            1. **Vision**: You receive a screen capture every 1.5 seconds. You see exactly what the user sees. Use this for context.
+            2. **Navigation**: If the user asks to go to a page or you need to see a different form, use 'navigate_app'.
+            3. **Form Filling**: Use 'fill_voucher_form' or 'fill_lhdn_letter' to update fields.
+            4. **Progress**: Monitor the visual progress bars or empty fields (red borders) on screen.
             
             BEHAVIOR:
-            - **Drive Progress**: Look at the "Compliance Progress" on screen. If it's not 100%, tell the user what is missing (e.g., "You need to upload a company logo" or "Please upload a receipt").
-            - **Auto-Fill**: If the user provides info verbally, fill it immediately.
-            - **Checklist**: Remind them to upload a Company Logo and Receipt Image if missing.
-            - **Navigation**: Use 'navigate_app' if they want to go elsewhere.
+            - **Be Proactive**: If you see missing fields, ask for them.
+            - **Spatial Awareness**: You can refer to elements by their location (e.g., "The box on the right").
+            - **One Session**: You are the sole active agent.
+            - **Context Persistence**: Remember that the user might switch tabs. Follow them visually.
             
-            Keep responses helpful, concise, and focused on getting that progress bar to 100%.`,
+            Keep responses helpful, concise, and professional.`,
             speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
             }
@@ -205,7 +217,6 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                 processor.onaudioprocess = (e) => {
                     const inputData = e.inputBuffer.getChannelData(0);
                     const pcmBlob = createPcmBlob(inputData);
-                    // Use closure to ensure we use the correct promise
                     sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
                 };
                 
@@ -216,8 +227,11 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                 processorRef.current = processor;
 
                 // --- Spatial Video Streaming (Periodic Screenshots) ---
-                // Increased frequency to 1.5s for better "real-time" feel
+                // 1.5s interval for near real-time updates
                 videoIntervalRef.current = setInterval(async () => {
+                     // Check if session is still active
+                     if (!audioContextRef.current) return;
+                     
                      const imageBase64 = await captureScreen();
                      if (imageBase64) {
                          sessionPromise.then(session => {
@@ -307,6 +321,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                 addLog("Error: " + JSON.stringify(err));
                 setConnected(false);
                 setIsConnecting(false);
+                if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
             }
         }
       });
@@ -363,7 +378,7 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
   };
 
   return (
-    <LiveAgentContext.Provider value={{ connected, isConnecting, isSpeaking, logs, connect, disconnect, addLog }}>
+    <LiveAgentContext.Provider value={{ connected, isConnecting, isSpeaking, logs, connect, disconnect, addLog, sendContextInfo }}>
       {children}
     </LiveAgentContext.Provider>
   );

@@ -1,15 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { NeuroButton, NeuroCard } from './NeuroComponents';
-import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2, ClipboardList, Settings, ScrollText, Radio, Monitor, MicOff, Maximize2, Cpu } from 'lucide-react';
+import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2, ClipboardList, Settings, ScrollText, Radio, Monitor, MicOff, Maximize2, Cpu, Eye } from 'lucide-react';
 import { useLiveAgent } from '../contexts/LiveAgentContext';
 
-const SidebarItem = ({ to, icon: Icon, label, extra }: { to: string; icon: any; label: string, extra?: React.ReactNode }) => (
+const SidebarItem = ({ to, icon: Icon, label, extra, connected }: { to: string; icon: any; label: string, extra?: React.ReactNode, connected?: boolean }) => (
   <NavLink to={to} className={({ isActive }) => `block mb-4 no-underline`}>
     {({ isActive }) => (
-      <NeuroButton active={isActive} className="w-full flex items-center gap-3 justify-start relative group">
-        <Icon size={20} className={isActive ? 'text-blue-600' : 'text-gray-500'} />
+      <NeuroButton active={isActive} className="w-full flex items-center gap-3 justify-start relative group overflow-hidden transition-all duration-300">
+        <div className="relative">
+            <Icon size={20} className={isActive ? 'text-blue-600' : 'text-gray-500'} />
+            {/* Visual Indicator: Agent Watching this Tab (Spatial Awareness) */}
+            {isActive && connected && to !== '/live' && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3 z-10">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 border-2 border-white"></span>
+                </span>
+            )}
+        </div>
         <span className={`flex-1 text-left ${isActive ? 'font-bold text-gray-700' : 'text-gray-600'}`}>{label}</span>
+        
+        {/* Context Awareness Badge (Hover) */}
+        {isActive && connected && to !== '/live' && (
+            <div className="absolute right-12 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-green-50 px-2 py-0.5 rounded-full border border-green-100 shadow-sm flex items-center gap-1 z-10">
+                 <Eye size={10} className="text-green-600" />
+                 <span className="text-[9px] font-bold text-green-600 uppercase tracking-tight">Watching</span>
+            </div>
+        )}
+        
         {extra}
       </NeuroButton>
     )}
@@ -161,17 +179,18 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           </div>
           
           <nav className="flex-1">
-            <SidebarItem to="/" icon={BarChart2} label="Dashboard" />
-            <SidebarItem to="/voucher" icon={FileText} label="Generator" />
-            <SidebarItem to="/vouchers" icon={ClipboardList} label="History" />
-            <SidebarItem to="/lhdn-letter" icon={ScrollText} label="LHDN Letter" />
-            <SidebarItem to="/chat" icon={MessageSquare} label="AI Advisor" />
+            <SidebarItem to="/" icon={BarChart2} label="Dashboard" connected={connected} />
+            <SidebarItem to="/voucher" icon={FileText} label="Generator" connected={connected} />
+            <SidebarItem to="/vouchers" icon={ClipboardList} label="History" connected={connected} />
+            <SidebarItem to="/lhdn-letter" icon={ScrollText} label="LHDN Letter" connected={connected} />
+            <SidebarItem to="/chat" icon={MessageSquare} label="AI Advisor" connected={connected} />
             
             {/* Live Agent Item with requested Visual Indicator */}
             <SidebarItem 
                 to="/live" 
                 icon={Mic} 
                 label="Live Agent" 
+                connected={connected}
                 extra={
                     <div className="ml-auto flex items-center gap-2">
                         {connected && <span className="text-[10px] font-bold text-green-600 animate-pulse">ON</span>}
@@ -180,11 +199,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 }
             />
             
-            <SidebarItem to="/editor" icon={ImageIcon} label="Receipt Editor" />
+            <SidebarItem to="/editor" icon={ImageIcon} label="Receipt Editor" connected={connected} />
           </nav>
 
           <div className="mt-auto pt-4 border-t border-gray-300/20 space-y-4">
-            <SidebarItem to="/settings" icon={Settings} label="Settings" />
+            <SidebarItem to="/settings" icon={Settings} label="Settings" connected={connected} />
             <div className="text-xs text-center text-gray-500 font-mono opacity-60">
                 V.0.1.28 DeckerGUI Ecosystem
             </div>
