@@ -13,6 +13,7 @@ import { LiveAgentProvider } from './contexts/LiveAgentContext';
 import { Intro } from './pages/Intro';
 
 function App() {
+  // Always initialize showIntro to true to ensure it shows on every refresh/visit
   const [showIntro, setShowIntro] = useState(true);
 
   if (showIntro) {

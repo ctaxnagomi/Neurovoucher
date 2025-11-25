@@ -20,7 +20,7 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
   const previousMouseXRef = useRef(0);
   const globeRef = useRef<THREE.Group | null>(null);
   
-  // Updated Target RPM to 16000
+  // Updated Target RPM to 16000 as requested
   const targetRPM = 16000;
 
   useEffect(() => {
@@ -100,10 +100,11 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const delta = clientX - previousMouseXRef.current;
       
-      // Hyper-sensitivity for 16000 RPM target
+      // Hyper-sensitivity for 16000 RPM target: Small movements create massive velocity
       velocityRef.current += delta * 0.15; 
       
-      // Extreme velocity cap (approx 30-40 rad/frame needed for 16k RPM)
+      // Extreme velocity cap to allow reaching ~16k RPM (requires ~28 rad/frame)
+      // Cap at 50.0 rad/frame to be safe
       if (velocityRef.current > 50.0) velocityRef.current = 50.0;
       if (velocityRef.current < -50.0) velocityRef.current = -50.0;
 
@@ -150,10 +151,11 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
       }
 
       if (!isDraggingRef.current) {
-        // Low friction to allow extreme spin up
+        // Very low friction to sustain high speeds
         velocityRef.current *= 0.99; 
       }
 
+      // RPM Calculation: (rad/frame * 60 fps * 60 sec) / 2PI
       const currentRPM = Math.abs((velocityRef.current * 60 * 60) / (2 * Math.PI));
       setRpm(Math.round(currentRPM));
 
@@ -208,7 +210,7 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
         if (scale > 30) {
             clearInterval(expandInterval);
             setShowText(true);
-            // Longer timeout to read the text
+            // Wait 4.5s for user to read text before completing
             setTimeout(() => {
                 onComplete();
             }, 4500); 
@@ -251,7 +253,7 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
 
                 <div className="text-center">
                     <span className={`text-4xl font-black font-mono tracking-tighter transition-colors ${rpm >= targetRPM ? 'text-green-500' : 'text-gray-600'}`}>
-                        {rpm}
+                        {rpm.toLocaleString()}
                     </span>
                     <div className="text-[10px] text-gray-400 font-bold mt-1">RPM</div>
                 </div>
@@ -261,7 +263,7 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
                  <div className="h-1 w-32 bg-gray-300 rounded-full overflow-hidden">
                      <div className="h-full bg-blue-500 transition-all duration-100 ease-out" style={{ width: `${Math.min(100, (rpm / targetRPM) * 100)}%` }}></div>
                  </div>
-                 <p className="text-[10px] text-center text-gray-400 mt-2">Target: {targetRPM} RPM</p>
+                 <p className="text-[10px] text-center text-gray-400 mt-2">Target: {targetRPM.toLocaleString()} RPM</p>
              </div>
          </div>
 

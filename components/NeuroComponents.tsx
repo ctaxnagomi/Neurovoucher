@@ -67,3 +67,15 @@ export const NeuroBadge: React.FC<{ children: React.ReactNode; color?: string }>
         {children}
     </span>
 );
+
+export const NeuroToggle: React.FC<{ checked: boolean; onChange: (checked: boolean) => void; label: string; className?: string }> = ({ checked, onChange, label, className = "" }) => (
+    <div 
+        onClick={() => onChange(!checked)}
+        className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all active:scale-[0.98] select-none bg-[#e0e5ec] shadow-[inset_4px_4px_8px_rgba(163,177,198,0.6),inset_-4px_-4px_8px_rgba(255,255,255,0.5)] border border-white/20 ${className}`}
+    >
+        <span className={`text-sm font-bold ml-1 transition-colors ${checked ? 'text-green-600' : 'text-gray-500'}`}>{label}</span>
+        <div className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${checked ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-gray-300 shadow-inner'}`}>
+            <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-md transition-transform duration-300 ${checked ? 'translate-x-6' : 'translate-x-0'}`}></div>
+        </div>
+    </div>
+);
