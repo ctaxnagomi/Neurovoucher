@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroTextarea, NeuroBadge, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, extractLetterhead } from '../services/geminiService';
 import { Download, Copy, Sparkles, FileCheck, HelpCircle, ScrollText, Info, AlertTriangle, XCircle, ScanLine, Loader2 } from 'lucide-react';
 import { jsPDF } from "jspdf";
+import { useLiveAgent } from '../contexts/LiveAgentContext';
 
 export const CHECKLIST_ITEMS = [
     "Original signed Explanation Letter (on Company Letterhead)",
@@ -43,6 +44,27 @@ export const LHDNLetterGenerator: React.FC = () => {
     const [scanning, setScanning] = useState(false);
     const [paperSize, setPaperSize] = useState<'a4' | 'letter'>('a4');
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const { connected } = useLiveAgent();
+
+    // Live Agent Listener
+    useEffect(() => {
+        const handleFillLHDN = (e: CustomEvent) => {
+            const data = e.detail;
+            console.log("Live Agent Filling LHDN Letter:", data);
+            
+            if (data.companyName) setCompanyName(data.companyName);
+            if (data.regNo) setRegNo(data.regNo);
+            if (data.reason) setReason(data.reason);
+            if (data.yearAssessment) setYearAssessment(data.yearAssessment);
+            if (data.totalAmount) setTotalAmount(data.totalAmount);
+        };
+
+        window.addEventListener('neuro-fill-lhdn' as any, handleFillLHDN as any);
+        return () => {
+            window.removeEventListener('neuro-fill-lhdn' as any, handleFillLHDN as any);
+        };
+    }, []);
 
     const handleScanLetterhead = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -276,7 +298,14 @@ ${companyName}`;
                     <ScrollText className="text-blue-600" />
                     LHDN Letter Generator
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">Draft formal explanation letters for missing receipts compliant with LHDN standards.</p>
+                <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-500 mt-1">Draft formal explanation letters for missing receipts compliant with LHDN standards.</p>
+                    {connected && (
+                         <div className="text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200 animate-pulse flex items-center gap-1 mt-1">
+                             <Sparkles size={10} /> Live Agent Ready
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

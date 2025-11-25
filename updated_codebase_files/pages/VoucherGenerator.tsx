@@ -216,6 +216,7 @@ export const VoucherGenerator: React.FC = () => {
 
   // Live Agent Tool Event Listener
   useEffect(() => {
+      // Listen for the specific 'neuro-fill-voucher' event from the context
       const handleFillForm = (e: CustomEvent) => {
           const data = e.detail;
           console.log("Live Agent Filling Form:", data);
@@ -252,9 +253,13 @@ export const VoucherGenerator: React.FC = () => {
           setAutoFilledFields(newAutoFilled);
       };
 
+      // Add listeners for both legacy and new event names to be safe
       window.addEventListener('neuro-fill-form' as any, handleFillForm as any);
+      window.addEventListener('neuro-fill-voucher' as any, handleFillForm as any);
+      
       return () => {
           window.removeEventListener('neuro-fill-form' as any, handleFillForm as any);
+          window.removeEventListener('neuro-fill-voucher' as any, handleFillForm as any);
       };
   }, [autoFilledFields]);
 
