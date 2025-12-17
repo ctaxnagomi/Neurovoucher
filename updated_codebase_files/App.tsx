@@ -10,6 +10,7 @@ import { ReceiptEditor } from './pages/ReceiptEditor';
 import { LHDNLetterGenerator } from './pages/LHDNLetterGenerator';
 import { Settings } from './pages/Settings';
 import { LiveAgentProvider } from './contexts/LiveAgentContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import { Intro } from './pages/Intro';
 
 function App() {
@@ -21,23 +22,25 @@ function App() {
   }
 
   return (
-    <LiveAgentProvider>
-      <HashRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/voucher" element={<VoucherGenerator />} />
-            <Route path="/vouchers" element={<VoucherList />} />
-            <Route path="/lhdn-letter" element={<LHDNLetterGenerator />} />
-            <Route path="/chat" element={<ChatAssistant />} />
-            <Route path="/live" element={<LiveAgent />} />
-            <Route path="/editor" element={<ReceiptEditor />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Layout>
-      </HashRouter>
-    </LiveAgentProvider>
+    <LanguageProvider>
+      <LiveAgentProvider>
+        <HashRouter>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/voucher" element={<VoucherGenerator />} />
+              <Route path="/vouchers" element={<VoucherList />} />
+              <Route path="/lhdn-letter" element={<LHDNLetterGenerator />} />
+              <Route path="/chat" element={<ChatAssistant />} />
+              <Route path="/live" element={<LiveAgent />} />
+              <Route path="/editor" element={<ReceiptEditor />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Layout>
+        </HashRouter>
+      </LiveAgentProvider>
+    </LanguageProvider>
   );
 }
 

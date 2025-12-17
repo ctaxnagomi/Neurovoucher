@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { NeuroCard, NeuroButton, NeuroBadge } from '../components/NeuroComponents';
+﻿import React, { useEffect, useState } from 'react';
+import { TunaiCard, TunaiButton, TunaiBadge } from '../components/TunaiComponents';
 import { ChevronLeft, ChevronRight, Eye, Download, Search, FileSpreadsheet } from 'lucide-react';
 import { generateVouchersExcel } from '../lib/export/excel-generator';
 
@@ -136,18 +136,18 @@ export const VoucherList: React.FC = () => {
                 />
                 <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
              </div>
-             <NeuroButton 
+             <TunaiButton 
                 onClick={handleExportAll} 
                 disabled={exporting || loading}
                 className="flex items-center justify-center gap-2 text-green-700 !py-2"
              >
                 <FileSpreadsheet size={18} className={exporting ? "animate-pulse" : ""} />
                 {exporting ? "Exporting..." : "Export All"}
-             </NeuroButton>
+             </TunaiButton>
         </div>
       </div>
 
-      <NeuroCard className="overflow-hidden p-0">
+      <TunaiCard className="overflow-hidden p-0">
         <div className="overflow-x-auto">
             <table className="w-full min-w-[800px]">
                 <thead className="bg-gray-200/50 border-b border-gray-300">
@@ -179,9 +179,9 @@ export const VoucherList: React.FC = () => {
                                     RM {Number(voucher.total_amount).toFixed(2)}
                                 </td>
                                 <td className="px-6 py-4 text-center">
-                                    <NeuroBadge color={getStatusColor(voucher.status)}>
+                                    <TunaiBadge color={getStatusColor(voucher.status)}>
                                         {voucher.status}
-                                    </NeuroBadge>
+                                    </TunaiBadge>
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <div className="flex justify-center gap-2">
@@ -206,23 +206,23 @@ export const VoucherList: React.FC = () => {
                 Page {page} of {totalPages}
             </div>
             <div className="flex gap-2">
-                <NeuroButton 
+                <TunaiButton 
                     onClick={() => setPage(p => Math.max(1, p - 1))} 
                     disabled={page === 1}
                     className="!py-2 !px-3 disabled:opacity-50"
                 >
                     <ChevronLeft size={16} />
-                </NeuroButton>
-                <NeuroButton 
+                </TunaiButton>
+                <TunaiButton 
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
                     disabled={page === totalPages}
                     className="!py-2 !px-3 disabled:opacity-50"
                 >
                     <ChevronRight size={16} />
-                </NeuroButton>
+                </TunaiButton>
             </div>
         </div>
-      </NeuroCard>
+      </TunaiCard>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 {
-  "name": "v.0.1.27-neurovoucher-(deckergui)",
+  "name": "tunai-cukai-my",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,16 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "lucide-react": "^0.554.0",
     "@google/genai": "^1.30.0",
-    "react": "^19.2.0",
-    "react-router-dom": "^7.9.6",
-    "react-dom": "^19.2.0",
-    "recharts": "^3.5.0",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "jspdf": "2.5.1",
+    "@supabase/supabase-js": "^2.87.3",
     "html2canvas": "1.4.1",
-    "three": "0.160.0"
+    "jspdf": "2.5.1",
+    "lucide-react": "^0.554.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.6",
+    "recharts": "^3.5.0",
+    "xlsx": "latest"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

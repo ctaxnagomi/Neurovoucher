@@ -1,14 +1,16 @@
-import React from 'react';
-import { NeuroCard, NeuroButton } from '../components/NeuroComponents';
+﻿import React from 'react';
+import { TunaiCard, TunaiButton } from '../components/TunaiComponents';
 import { Mic, MicOff, Radio, Activity, Monitor, AlertTriangle } from 'lucide-react';
 import { useLiveAgent } from '../contexts/LiveAgentContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export const LiveAgent: React.FC = () => {
   const { connected, isConnecting, isSpeaking, logs, connect, disconnect } = useLiveAgent();
+  const { t } = useLanguage();
 
   return (
     <div className="flex flex-col items-center justify-center h-full space-y-8 max-w-2xl mx-auto">
-        <NeuroCard className="w-full text-center py-12 px-8 relative overflow-hidden">
+        <TunaiCard className="w-full text-center py-12 px-8 relative overflow-hidden">
             {connected && (
                 <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 rounded-xl border border-red-100 shadow-sm animate-pulse">
@@ -41,7 +43,7 @@ export const LiveAgent: React.FC = () => {
             </div>
 
             <h2 className="mt-8 text-2xl font-bold text-gray-700">
-                {isConnecting ? "Establishing Link..." : connected ? (isSpeaking ? "Gemini is speaking..." : "Listening & Watching...") : "Start Voice Session"}
+                {isConnecting ? t('establishingLink') : connected ? (isSpeaking ? t('speaking') : t('listening')) : t('startSession')}
             </h2>
             
             <div className="mt-4 max-w-md mx-auto">
@@ -54,26 +56,26 @@ export const LiveAgent: React.FC = () => {
 
             <div className="mt-8">
                 {!connected ? (
-                    <NeuroButton onClick={connect} disabled={isConnecting} className="flex items-center gap-2 mx-auto text-blue-600 min-w-[200px] justify-center">
+                    <TunaiButton onClick={connect} disabled={isConnecting} className="flex items-center gap-2 mx-auto text-blue-600 min-w-[200px] justify-center">
                         <Mic size={20} className={isConnecting ? "animate-spin" : ""} /> 
-                        {isConnecting ? "Connecting..." : "Connect Live Agent"}
-                    </NeuroButton>
+                        {isConnecting ? "Connecting..." : t('connect')}
+                    </TunaiButton>
                 ) : (
-                    <NeuroButton onClick={disconnect} className="flex items-center gap-2 mx-auto text-red-600 min-w-[200px] justify-center">
-                         <MicOff size={20} /> End Session
-                    </NeuroButton>
+                    <TunaiButton onClick={disconnect} className="flex items-center gap-2 mx-auto text-red-600 min-w-[200px] justify-center">
+                         <MicOff size={20} /> {t('endSession')}
+                    </TunaiButton>
                 )}
             </div>
-        </NeuroCard>
+        </TunaiCard>
 
         {/* Instructions Card */}
-        <NeuroCard className="w-full opacity-90">
+        <TunaiCard className="w-full opacity-90">
              <div className="flex items-start gap-4">
                  <div className="p-3 bg-blue-100/50 rounded-xl text-blue-600">
                      <Monitor size={24} />
                  </div>
                  <div>
-                     <h4 className="font-bold text-gray-700 text-sm mb-1">Spatial Awareness Active</h4>
+                     <h4 className="font-bold text-gray-700 text-sm mb-1">{t('spatialAwareness')}</h4>
                      <p className="text-xs text-gray-500 leading-relaxed mb-2">
                         This session captures your screen content securely to provide context. 
                         Try asking: 
@@ -85,11 +87,11 @@ export const LiveAgent: React.FC = () => {
                      </ul>
                  </div>
              </div>
-        </NeuroCard>
+        </TunaiCard>
 
         <div className="w-full text-left opacity-70">
             <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Activity size={12} /> Live Logs
+                <Activity size={12} /> {t('liveLogs')}
             </h4>
             <div className="bg-[#e0e5ec] p-3 rounded-xl shadow-[inset_4px_4px_8px_rgba(163,177,198,0.6),inset_-4px_-4px_8px_rgba(255,255,255,0.5)] font-mono text-[10px] text-gray-500 space-y-1 max-h-32 overflow-y-auto border border-gray-200/50">
                 {logs.length === 0 && <span className="opacity-50">System ready. Waiting for connection...</span>}

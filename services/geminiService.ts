@@ -1,6 +1,11 @@
-import { GoogleGenAI, Modality, Type } from "@google/genai";
+﻿import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { GeminiModel, SUPPORTED_LANGUAGES } from "../types";
 import { b64ToUint8Array, decodeAudioData } from "./audioUtils";
+
+// Helper to clean JSON string from Markdown code blocks
+const cleanJsonString = (jsonStr: string): string => {
+    return jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
+};
 
 // Helper to get key from storage or env
 export const getApiKey = () => {
@@ -58,18 +63,22 @@ export const generateFastSummary = async (prompt: string): Promise<string> => {
   }
 };
 
-// --- Pro Chat (Gemini 3 Pro) ---
+// --- Pro Chat (Gemini 3 Pro) with Thinking & Search ---
 export const createChatSession = (additionalContext: string = "") => {
   const client = getClient();
-  const baseInstruction = "You are the NEURO COUNCIL, an advanced AI Financial Advisor and Agentic Assistant specializing in Malaysian LHDN cash vouchers, tax compliance, and finance workflows. \n\n" +
+  const baseInstruction = "You are the TUNAICUKAI COUNCIL, an advanced AI Financial Advisor and Agentic Assistant specializing in Malaysian LHDN cash vouchers, tax compliance, and finance workflows. \n\n" +
   "You have access to the user's current task context and checklists. Guide them proactively.\n" +
   "Strictly adhere to LHDN Malaysia guidelines (e.g., Public Rulings on substantiation of expense). \n" +
-  "Remind users that expenses must be wholly and exclusively incurred in the production of income. Cash vouchers require Payee Name, IC/Passport, and clear description.";
+  "CRITICAL COMPLIANCE RULE: LHDN requires documentation in Bahasa Melayu or English. Even if the user speaks another language (e.g. Mandarin), any official drafts, voucher descriptions, or form content you generate MUST be in English or Malay.\n" +
+  "Remind users that expenses must be wholly and exclusively incurred in the production of income. Cash vouchers require Payee Name, IC/Passport, and clear description.\n\n" +
+  "You have access to Google Search. Use it to find the latest tax rates, public rulings, and financial news if you are unsure.";
   
   return client.chats.create({
     model: GeminiModel.CHAT_PRO,
     config: {
       systemInstruction: additionalContext ? `${baseInstruction}\n\nCurrent Context/Checklist:\n${additionalContext}` : baseInstruction,
+      thinkingConfig: { thinkingBudget: 32768 },
+      tools: [{ googleSearch: {} }],
     }
   });
 };
@@ -110,7 +119,7 @@ export const editImage = async (base64Image: string, prompt: string): Promise<st
     try {
         const response = await client.models.generateContent({
             model: GeminiModel.IMAGE_EDIT,
-            contents: {
+            contents: [{
                 parts: [
                     {
                         inlineData: {
@@ -120,7 +129,7 @@ export const editImage = async (base64Image: string, prompt: string): Promise<st
                     },
                     { text: prompt }
                 ]
-            }
+            }]
         });
 
         // The model returns an image in inlineData
@@ -148,7 +157,7 @@ export const extractLetterhead = async (base64Image: string): Promise<{
   try {
     const response = await client.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: {
+      contents: [{
         parts: [
           { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
           { text: `Analyze this document header or business card. Extract the following business details into JSON:
@@ -160,7 +169,7 @@ export const extractLetterhead = async (base64Image: string): Promise<{
             ` 
           }
         ]
-      },
+      }],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -175,14 +184,16 @@ export const extractLetterhead = async (base64Image: string): Promise<{
         }
       }
     });
-    return JSON.parse(response.text || '{}');
+    
+    const text = response.text || '{}';
+    return JSON.parse(cleanJsonString(text));
   } catch (e) {
       console.error("Letterhead Extraction Error:", e);
       return null;
   }
 }
 
-// --- OCR / Receipt Extraction (Flash) ---
+// --- OCR / Receipt Extraction (Pro Image) ---
 export const extractReceiptData = async (base64Image: string, language: string = 'en'): Promise<{ 
     payeeName?: string; 
     payeeId?: string;
@@ -207,8 +218,8 @@ export const extractReceiptData = async (base64Image: string, language: string =
 
   try {
     const response = await client.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: {
+      model: GeminiModel.CHAT_PRO, // Using Gemini 3 Pro for advanced image understanding
+      contents: [{
         parts: [
           {
             inlineData: {
@@ -216,7 +227,12 @@ export const extractReceiptData = async (base64Image: string, language: string =
               mimeType: 'image/jpeg'
             }
           },
-          { text: `Analyze this receipt image which is likely in ${langLabel}. Extract the following details into a structured JSON format.
+          { text: `Analyze this receipt image. The receipt is likely in ${langLabel}. Extract the following details into a structured JSON format.
+
+            **CRITICAL LHDN COMPLIANCE RULE**: 
+            The extracted data is for official Malaysian Tax submission. 
+            If the extracted text (Payee Name, Items, Descriptions) is in a language OTHER than **Bahasa Melayu** or **English** (e.g. Chinese, Tamil), you MUST TRANSLATE it into **English**.
+            All output fields must be in English or Bahasa Melayu.
 
             1. **Payee Name**: The merchant or shop name. Look at the top header or logo.
             2. **Payee ID**: Business registration number (e.g., SSM, ROC, ROB, GST ID, TIN).
@@ -227,16 +243,21 @@ export const extractReceiptData = async (base64Image: string, language: string =
             7. **Company Address**: The full address of the 'Bill To' company.
             8. **Company Contact**: Extract Phone (Tel), Email, and Fax if available in the header or footer.
 
-            **LHDN Malaysia Tax Analysis**:
-            9. **Tax Deductible**: Boolean. Is this expense likely tax deductible for a company (Sdn Bhd) under Malaysia Income Tax Act 1967?
-            10. **Tax Category**: Suggest a specific tax category (e.g., "Entertainment - 50% Restricted", "Staff Welfare - 100%", "Repair & Maintenance").
-            11. **Tax Code/Limit**: If applicable, mention the Public Ruling code or limit (e.g., "RM2000 limit for devices", "50% restriction for client entertainment").
-            12. **Tax Reason**: Brief explanation for the classification.
+            **LHDN Malaysia Tax Analysis (Income Tax Act 1967)**:
+            9. **Tax Deductible**: Boolean. Is this expense likely tax deductible for a company under Sec 33(1)? (Wholly and exclusively incurred in production of income).
+            10. **Tax Category**: Suggest a specific LHDN tax category based on Public Rulings:
+               - "Entertainment (50% Restricted)" (e.g., meals with clients).
+               - "Staff Welfare (100% Deductible)" (e.g., staff meals, team building).
+               - "Travel & Transport" (Deductible if business nature).
+               - "Gifts (Restricted)" (Restricted unless advertisement/logo present).
+               - "Private/Domestic" (Non-deductible under Sec 39).
+            11. **Tax Code/Limit**: Reference relevant codes (e.g., "PR 4/2015", "Sec 39(1)(l)").
+            12. **Tax Reason**: Brief professional explanation for the classification in English.
 
             If a field is ambiguous or missing, exclude it or return null.` 
           }
         ]
-      },
+      }],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -266,17 +287,45 @@ export const extractReceiptData = async (base64Image: string, language: string =
     const jsonText = response.text;
     if (jsonText) {
         try {
-            return JSON.parse(jsonText);
+            return JSON.parse(cleanJsonString(jsonText));
         } catch (e) {
+            console.error("JSON Parse Error on:", jsonText);
             throw new Error("PARSING_FAILED");
         }
     }
     throw new Error("NO_RESPONSE_TEXT");
   } catch (error) {
     console.error("Receipt Extraction Error:", error);
-    // Rethrow to allow specific error handling in UI
     throw error;
   }
+}
+
+// --- Video Analysis (Pro) ---
+export const analyzeVideo = async (base64Video: string, mimeType: string, prompt: string): Promise<string> => {
+    const client = getClient();
+    try {
+        const response = await client.models.generateContent({
+            model: GeminiModel.CHAT_PRO,
+            contents: [{
+                parts: [
+                    {
+                        inlineData: {
+                            data: base64Video,
+                            mimeType: mimeType
+                        }
+                    },
+                    { text: prompt }
+                ]
+            }],
+            config: {
+                thinkingConfig: { thinkingBudget: 16384 }, // Lower budget for video to balance latency
+            }
+        });
+        return response.text || "No analysis generated.";
+    } catch (error) {
+        console.error("Video Analysis Error:", error);
+        return "Failed to analyze video.";
+    }
 }
 
 // --- Live API Connector ---

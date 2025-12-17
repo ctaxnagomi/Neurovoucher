@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { NeuroCard, NeuroBadge } from '../components/NeuroComponents';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 import { Timer, Zap, ShieldCheck, Info, Mic } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const weeklyData = [
   { name: 'Mon', amt: 2400, type: 10, freq: 5, tax: 2100 },
@@ -31,6 +32,7 @@ const annualData = [
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [timeRange, setTimeRange] = useState<'Weekly' | 'Annually'>('Weekly');
   const [metric, setMetric] = useState<'amt' | 'type' | 'freq' | 'tax'>('amt');
   const [viewMode, setViewMode] = useState<'expenditure' | 'taxCompliance'>('expenditure');
@@ -72,7 +74,7 @@ export const Dashboard: React.FC = () => {
                   <Mic className="text-white" size={24} />
               </div>
               <div className="text-white">
-                  <h3 className="text-lg font-bold">Activate Live Agent</h3>
+                  <h3 className="text-lg font-bold">{t('startSession')}</h3>
                   <p className="text-xs text-blue-100 opacity-90">Hands-free navigation, screen-aware form filling, and real-time guidance. Tap here to start.</p>
               </div>
           </div>
@@ -81,7 +83,7 @@ export const Dashboard: React.FC = () => {
       {/* Top Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <NeuroCard>
-          <div className="text-gray-500 text-sm font-medium">Total Expenses</div>
+          <div className="text-gray-500 text-sm font-medium">{t('totalExpenses')}</div>
           <div className="text-3xl font-bold text-gray-700 mt-2">RM 45,231.00</div>
           <div className="mt-4 flex gap-2">
              <NeuroBadge color="text-green-600">+12%</NeuroBadge>
@@ -89,14 +91,14 @@ export const Dashboard: React.FC = () => {
           </div>
         </NeuroCard>
         <NeuroCard>
-          <div className="text-gray-500 text-sm font-medium">Pending Vouchers</div>
+          <div className="text-gray-500 text-sm font-medium">{t('pendingVouchers')}</div>
           <div className="text-3xl font-bold text-gray-700 mt-2">14</div>
            <div className="mt-4 flex gap-2">
-             <NeuroBadge color="text-orange-600">Action Required</NeuroBadge>
+             <NeuroBadge color="text-orange-600">{t('actionRequired')}</NeuroBadge>
           </div>
         </NeuroCard>
         <NeuroCard>
-          <div className="text-gray-500 text-sm font-medium">AI Optimizations</div>
+          <div className="text-gray-500 text-sm font-medium">{t('aiOptimizations')}</div>
           <div className="text-3xl font-bold text-gray-700 mt-2">89</div>
            <div className="mt-4 flex gap-2">
              <NeuroBadge color="text-purple-600">Gemini 3.0</NeuroBadge>
@@ -110,7 +112,7 @@ export const Dashboard: React.FC = () => {
             <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-3">
                     <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">
-                        {timeRange} {viewMode === 'expenditure' ? 'Expenditure' : 'Tax Deductibility'}
+                        {t(timeRange.toLowerCase())} {viewMode === 'expenditure' ? t('expenditure') : t('taxDeductibility')}
                     </h3>
                     {viewMode === 'taxCompliance' && (
                         <div className="group relative z-20">
@@ -145,13 +147,13 @@ export const Dashboard: React.FC = () => {
                             onClick={() => setViewMode('expenditure')}
                             className={`text-xs px-4 py-1.5 rounded-lg transition-all duration-300 font-medium ${viewMode === 'expenditure' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
                         >
-                            Overview
+                            {t('summary')}
                         </button>
                         <button 
                             onClick={() => setViewMode('taxCompliance')}
                             className={`text-xs px-4 py-1.5 rounded-lg transition-all duration-300 font-medium flex items-center gap-2 ${viewMode === 'taxCompliance' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
                         >
-                            Deductible vs Non-Deductible
+                            {t('taxDeductibility')}
                         </button>
                     </div>
 
@@ -161,13 +163,13 @@ export const Dashboard: React.FC = () => {
                             onClick={() => setTimeRange('Weekly')}
                             className={`text-xs px-4 py-1.5 rounded-lg transition-all duration-300 font-medium ${timeRange === 'Weekly' ? 'bg-white text-gray-700 shadow-sm ring-1 ring-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
                         >
-                            Weekly
+                            {t('weekly')}
                         </button>
                         <button 
                             onClick={() => setTimeRange('Annually')}
                             className={`text-xs px-4 py-1.5 rounded-lg transition-all duration-300 font-medium ${timeRange === 'Annually' ? 'bg-white text-gray-700 shadow-sm ring-1 ring-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
                         >
-                            Annually
+                            {t('annually')}
                         </button>
                     </div>
                 </div>
@@ -179,9 +181,9 @@ export const Dashboard: React.FC = () => {
                     <Timer size={20} />
                 </div>
                 <div>
-                    <div className="text-[10px] uppercase font-bold text-orange-400 tracking-wider">LHDN Tax Filing (e-B)</div>
+                    <div className="text-[10px] uppercase font-bold text-orange-400 tracking-wider">{t('taxFiling')}</div>
                     <div className="text-sm font-bold text-gray-700 leading-tight">
-                    {daysLeft} Days Left <span className="text-xs font-normal text-gray-500 block sm:inline">to prepare submission</span>
+                    {daysLeft} {t('daysLeft')} <span className="text-xs font-normal text-gray-500 block sm:inline">to prepare submission</span>
                     </div>
                 </div>
             </div>
@@ -227,7 +229,7 @@ export const Dashboard: React.FC = () => {
                     onClick={() => setMetric('amt')} 
                     className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${metric === 'amt' ? 'bg-blue-50 text-blue-600 shadow-inner ring-1 ring-blue-100' : 'text-gray-400 hover:bg-gray-50'}`}
                 >
-                    Total Amount
+                    {t('totalAmount')}
                 </button>
                 <button 
                     onClick={() => setMetric('type')} 
@@ -246,7 +248,7 @@ export const Dashboard: React.FC = () => {
       </NeuroCard>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <NeuroCard title="Recent Activity">
+          <NeuroCard title={t('recentActivity')}>
               <ul className="space-y-4">
                   {[1,2,3].map(i => (
                       <li key={i} className="flex justify-between items-center pb-2 border-b border-gray-300/30 last:border-0">
@@ -266,7 +268,7 @@ export const Dashboard: React.FC = () => {
               </div>
           </NeuroCard>
 
-          <NeuroCard title="AI Insights">
+          <NeuroCard title={t('aiInsights')}>
               <div className="space-y-4">
                   <div 
                     onClick={() => handleFixInsight('3 duplicate receipts from Speedmart 99')}

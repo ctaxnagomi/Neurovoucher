@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { NeuroCard, NeuroInput, NeuroButton } from '../components/NeuroComponents';
 import { createChatSession } from '../services/geminiService';
-import { Send, Bot, User, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Sparkles, ExternalLink, Globe } from 'lucide-react';
 import { ChatMessage } from '../types';
 import { CHECKLIST_ITEMS } from './LHDNLetterGenerator';
 
@@ -31,6 +31,7 @@ ${CHECKLIST_ITEMS.map((item, i) => `${i+1}. ${item}`).join('\n')}
 Instruction:
 - Reference the checklist items when the user asks about compliance.
 - Guide them through the voucher creation process if they seem stuck.
+- You have the ability to SEARCH the web. Use it for latest rates.
 `;
         chatSessionRef.current = createChatSession(context);
     }
@@ -59,24 +60,34 @@ Instruction:
     setIsTyping(true);
 
     try {
-        const result = await chatSessionRef.current.sendMessageStream(userMsg.text);
+        const result = await chatSessionRef.current.sendMessageStream({ message: userMsg.text });
         
         let fullText = "";
+        let collectedGrounding: any[] = [];
         const botMsgId = Date.now();
         
         // Add placeholder
         setMessages(prev => [...prev, { role: 'model', text: '', timestamp: botMsgId }]);
 
         for await (const chunk of result) {
-            const chunkText = chunk.text();
-            fullText += chunkText;
+            const chunkText = chunk.text; // Fixed: accessing .text directly as per guidelines
+            if (chunkText) {
+                fullText += chunkText;
+            }
+            
+            // Check for grounding metadata in chunks
+            const groundingChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
+            if (groundingChunks) {
+                collectedGrounding = [...collectedGrounding, ...groundingChunks];
+            }
             
             setMessages(prev => prev.map(msg => 
-                msg.timestamp === botMsgId ? { ...msg, text: fullText } : msg
+                msg.timestamp === botMsgId ? { ...msg, text: fullText, grounding: collectedGrounding } : msg
             ));
         }
 
     } catch (error) {
+        console.error(error);
         setMessages(prev => [...prev, { role: 'model', text: "Sorry, I encountered an error connecting to Gemini.", timestamp: Date.now() }]);
     } finally {
         setIsTyping(false);
@@ -94,7 +105,7 @@ Instruction:
                     </div>
                     <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">NEURO COUNCIL (AI ADVISOR AND AGENTIC ASSISTANCE)</h3>
                     <p className="text-[10px] text-red-400 font-bold mt-1 tracking-wide uppercase">
-                        Powered by Thinking, Deep Research, Nano and AIOCR Model
+                        Powered by Thinking 32k, Deep Research & Google Search
                     </p>
                  </div>
                  
@@ -123,12 +134,39 @@ Instruction:
                             }`}>
                                 {msg.role === 'user' ? <User size={20} /> : <Bot size={20} />}
                             </div>
-                            <div className={`px-5 py-4 rounded-2xl text-sm leading-relaxed ${
-                                msg.role === 'user' 
-                                ? 'bg-[#e0e5ec] text-gray-800 rounded-br-none border border-white/50 shadow-[5px_5px_10px_rgba(163,177,198,0.5),-5px_-5px_10px_rgba(255,255,255,0.6)]' 
-                                : 'bg-white/60 text-gray-800 rounded-bl-none border border-white/60 shadow-sm'
-                            }`}>
-                                {msg.text}
+                            <div className={`flex flex-col gap-2`}>
+                                <div className={`px-5 py-4 rounded-2xl text-sm leading-relaxed ${
+                                    msg.role === 'user' 
+                                    ? 'bg-[#e0e5ec] text-gray-800 rounded-br-none border border-white/50 shadow-[5px_5px_10px_rgba(163,177,198,0.5),-5px_-5px_10px_rgba(255,255,255,0.6)]' 
+                                    : 'bg-white/60 text-gray-800 rounded-bl-none border border-white/60 shadow-sm'
+                                }`}>
+                                    <div className="whitespace-pre-wrap">{msg.text}</div>
+                                    
+                                    {/* Grounding Sources Display */}
+                                    {msg.grounding && msg.grounding.length > 0 && (
+                                        <div className="mt-4 pt-3 border-t border-gray-200/50">
+                                            <div className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1 mb-2">
+                                                <Globe size={10} /> Sources Found
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {msg.grounding.map((chunk: any, i: number) => (
+                                                    chunk.web?.uri && (
+                                                        <a 
+                                                            key={i} 
+                                                            href={chunk.web.uri} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-1 text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-md border border-blue-100 hover:bg-blue-100 transition-colors truncate max-w-[200px]"
+                                                        >
+                                                            <ExternalLink size={8} />
+                                                            <span className="truncate">{chunk.web.title || chunk.web.uri}</span>
+                                                        </a>
+                                                    )
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -137,7 +175,7 @@ Instruction:
                      <div className="flex justify-start">
                         <div className="flex items-center gap-2 ml-14 bg-white/30 px-4 py-2 rounded-full">
                             <Sparkles size={14} className="text-purple-500 animate-spin" />
-                            <span className="text-xs text-purple-600 font-medium animate-pulse">Gemini is thinking...</span>
+                            <span className="text-xs text-purple-600 font-medium animate-pulse">Gemini 3 Pro is thinking...</span>
                         </div>
                      </div>
                 )}

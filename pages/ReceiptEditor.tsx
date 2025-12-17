@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
-import { NeuroCard, NeuroButton, NeuroInput, NeuroSelect } from '../components/NeuroComponents';
+﻿import React, { useState, useRef } from 'react';
+import { TunaiCard, TunaiButton, TunaiInput, TunaiSelect } from '../components/TunaiComponents';
 import { editImage } from '../services/geminiService';
 import { Upload, Wand2, Download, Image as ImageIcon, Languages, Zap, Activity } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export const ReceiptEditor: React.FC = () => {
   const [image, setImage] = useState<string | null>(null);
@@ -11,6 +12,7 @@ export const ReceiptEditor: React.FC = () => {
   const [targetLanguage, setTargetLanguage] = useState('en');
   const [enableTranslation, setEnableTranslation] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useLanguage();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,7 +56,7 @@ export const ReceiptEditor: React.FC = () => {
     <div className="space-y-6">
         <div className="flex justify-between items-center">
              <div className="flex items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-700">Receipt Editor</h2>
+                <h2 className="text-2xl font-bold text-gray-700">{t('receiptEditor')}</h2>
                 <div className="flex items-center gap-1.5 px-3 py-1 bg-green-100/50 border border-green-200 rounded-full">
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                     <span className="text-[10px] font-bold text-green-700 uppercase tracking-wide">System Online</span>
@@ -64,13 +66,13 @@ export const ReceiptEditor: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
-                <NeuroCard className="min-h-[500px] flex items-center justify-center relative overflow-hidden bg-gray-200/50">
+                <TunaiCard className="min-h-[500px] flex items-center justify-center relative overflow-hidden bg-gray-200/50">
                     {image ? (
                         <img src={image} alt="Receipt" className="max-w-full max-h-[500px] object-contain rounded-lg shadow-lg" />
                     ) : (
                         <div className="text-center text-gray-400">
                             <ImageIcon size={64} className="mx-auto mb-4 opacity-50" />
-                            <p>Upload a receipt image to start editing</p>
+                            <p>{t('uploadImage')}</p>
                         </div>
                     )}
                     
@@ -82,11 +84,11 @@ export const ReceiptEditor: React.FC = () => {
                             </div>
                         </div>
                     )}
-                </NeuroCard>
+                </TunaiCard>
             </div>
 
             <div className="space-y-6">
-                <NeuroCard title="Upload">
+                <TunaiCard title="Upload">
                     <input 
                         type="file" 
                         ref={fileInputRef} 
@@ -94,20 +96,20 @@ export const ReceiptEditor: React.FC = () => {
                         className="hidden" 
                         accept="image/*"
                     />
-                    <NeuroButton onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2">
-                        <Upload size={18} /> Select Image
-                    </NeuroButton>
-                </NeuroCard>
+                    <TunaiButton onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2">
+                        <Upload size={18} /> {t('uploadImage')}
+                    </TunaiButton>
+                </TunaiCard>
 
-                <NeuroCard title="AI Edit & Translate">
+                <TunaiCard title="AI Edit & Translate">
                     <p className="text-sm text-gray-500 mb-4">
                         Clean up stains, improve contrast, or translate text while preserving layout.
                     </p>
                     
                     <div className="space-y-4">
                         <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Editor Prompt</label>
-                             <NeuroInput 
+                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('editorPrompt')}</label>
+                             <TunaiInput 
                                 placeholder="e.g., 'Remove the coffee stain'"
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
@@ -123,15 +125,15 @@ export const ReceiptEditor: React.FC = () => {
                                         onChange={(e) => setEnableTranslation(e.target.checked)}
                                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
                                     />
-                                    <span className="font-medium">Enable Translation</span>
+                                    <span className="font-medium">{t('enableTranslation')}</span>
                                 </label>
                                 <Languages size={16} className="text-blue-500" />
                             </div>
                             
                             {enableTranslation && (
                                 <div className="mt-2 animate-in slide-in-from-top-2 duration-200">
-                                    <label className="block text-xs text-gray-500 mb-1">Target Language</label>
-                                    <NeuroSelect 
+                                    <label className="block text-xs text-gray-500 mb-1">{t('targetLanguage')}</label>
+                                    <TunaiSelect 
                                         value={targetLanguage} 
                                         onChange={(e) => setTargetLanguage(e.target.value)}
                                         className="!py-2 !text-sm !bg-white"
@@ -139,21 +141,21 @@ export const ReceiptEditor: React.FC = () => {
                                         {SUPPORTED_LANGUAGES.map(lang => (
                                             <option key={lang.code} value={lang.code}>{lang.label}</option>
                                         ))}
-                                    </NeuroSelect>
+                                    </TunaiSelect>
                                 </div>
                             )}
                         </div>
 
-                        <NeuroButton 
+                        <TunaiButton 
                             onClick={handleEdit} 
                             disabled={!image || loading}
                             className="w-full flex items-center justify-center gap-2 text-purple-600 relative group overflow-hidden"
                         >
                             <span className="relative z-10 flex items-center gap-2">
-                                <Wand2 size={18} /> {enableTranslation ? 'Generate & Translate' : 'Generate Edit'}
+                                <Wand2 size={18} /> {enableTranslation ? t('generateTranslate') : t('generateEdit')}
                             </span>
                              <div className="absolute inset-0 bg-purple-100 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                        </NeuroButton>
+                        </TunaiButton>
                         
                         <div className="text-center">
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-500 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
@@ -161,14 +163,14 @@ export const ReceiptEditor: React.FC = () => {
                             </span>
                         </div>
                     </div>
-                </NeuroCard>
+                </TunaiCard>
                 
                  {image && (
-                    <NeuroCard>
-                        <NeuroButton className="w-full flex items-center justify-center gap-2 text-green-600">
-                            <Download size={18} /> Download Result
-                        </NeuroButton>
-                    </NeuroCard>
+                    <TunaiCard>
+                        <TunaiButton className="w-full flex items-center justify-center gap-2 text-green-600">
+                            <Download size={18} /> {t('downloadResult')}
+                        </TunaiButton>
+                    </TunaiCard>
                  )}
             </div>
         </div>

@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { NeuroCard, NeuroInput, NeuroButton, NeuroTextarea, NeuroBadge, NeuroSelect } from '../components/NeuroComponents';
+﻿import React, { useState, useRef, useEffect } from 'react';
+import { TunaiCard, TunaiInput, TunaiButton, TunaiTextarea, TunaiBadge, TunaiSelect } from '../components/TunaiComponents';
 import { generateFastSummary, extractLetterhead } from '../services/geminiService';
-import { Download, Copy, Sparkles, FileCheck, HelpCircle, ScrollText, Info, AlertTriangle, XCircle, ScanLine, Loader2 } from 'lucide-react';
+import { Download, Copy, Sparkles, FileCheck, HelpCircle, ScrollText, Info, AlertTriangle, XCircle, ScanLine, Loader2, RefreshCw, Edit3 } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { useLiveAgent } from '../contexts/LiveAgentContext';
 
@@ -43,6 +43,10 @@ export const LHDNLetterGenerator: React.FC = () => {
     const [isPolishing, setIsPolishing] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [paperSize, setPaperSize] = useState<'a4' | 'letter'>('a4');
+    
+    // Smart Compose State
+    const [showComposeModal, setShowComposeModal] = useState(false);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { connected } = useLiveAgent();
@@ -60,9 +64,9 @@ export const LHDNLetterGenerator: React.FC = () => {
             if (data.totalAmount) setTotalAmount(data.totalAmount);
         };
 
-        window.addEventListener('neuro-fill-lhdn' as any, handleFillLHDN as any);
+        window.addEventListener('tunai-fill-lhdn' as any, handleFillLHDN as any);
         return () => {
-            window.removeEventListener('neuro-fill-lhdn' as any, handleFillLHDN as any);
+            window.removeEventListener('tunai-fill-lhdn' as any, handleFillLHDN as any);
         };
     }, []);
 
@@ -97,13 +101,30 @@ export const LHDNLetterGenerator: React.FC = () => {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const handlePolishReason = async () => {
-        if (!reason) return;
+    const handleComposeClick = () => {
+        if (reason && reason.length > 20) {
+            setShowComposeModal(true);
+        } else {
+            executeSmartCompose('NEW');
+        }
+    };
+
+    const executeSmartCompose = async (mode: 'NEW' | 'REFINE') => {
+        setShowComposeModal(false);
         setIsPolishing(true);
+
         try {
-            const prompt = `Rewrite this reason for missing receipts in a formal, professional tone suitable for a letter to LHDN Malaysia. Keep it concise but explanatory. Reason: "${reason}"`;
-            const refined = await generateFastSummary(prompt);
-            setReason(refined.replace(/^"|"$/g, '')); // Remove quotes if added
+            let prompt = "";
+            if (mode === 'NEW') {
+                 // Generate a generic but professional template
+                 prompt = "Write a standard, professional 1-paragraph explanation for missing receipts due to 'inadvertent administrative error' suitable for LHDN Malaysia. Output MUST be in English. Keep it concise.";
+            } else {
+                 // Refine existing
+                 prompt = `Rewrite this reason for missing receipts in a formal, professional tone suitable for a letter to LHDN Malaysia. Output MUST be in **English**. Keep it concise but explanatory. Reason: "${reason}"`;
+            }
+
+            const result = await generateFastSummary(prompt);
+            setReason(result.replace(/^"|"$/g, ''));
         } catch (e) {
             console.error(e);
         } finally {
@@ -143,17 +164,17 @@ In lieu of original receipts, we hereby submit the following supporting document
 
 1. Cash Vouchers (Attached)
 We have prepared detailed cash vouchers for all missing expense transactions during ${yearAssessment}. Each voucher has been:
-• Prepared with complete details of the transaction
-• Cross-referenced with our bank statements
-• Signed and approved by appropriate management personnel
-• Numbered sequentially (${voucherStart} through ${voucherEnd})
+â€¢ Prepared with complete details of the transaction
+â€¢ Cross-referenced with our bank statements
+â€¢ Signed and approved by appropriate management personnel
+â€¢ Numbered sequentially (${voucherStart} through ${voucherEnd})
 
 2. Bank Statements (Attached)
 Complete bank statements for the Year of Assessment ${yearAssessment} are enclosed, which clearly show:
-• All funds disbursed for business operations
-• Dates, amounts, and reference information for each transaction
-• Clear traceability between bank records and expense vouchers
-• Bank account number: ${bankAccount} with ${bankName}
+â€¢ All funds disbursed for business operations
+â€¢ Dates, amounts, and reference information for each transaction
+â€¢ Clear traceability between bank records and expense vouchers
+â€¢ Bank account number: ${bankAccount} with ${bankName}
 
 3. Financial Records & Bank Reconciliation
 We have maintained complete financial records including General ledger entries, monthly bank reconciliation statements, and audit trail documentation.
@@ -311,7 +332,7 @@ ${companyName}`;
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Left: Configuration */}
                 <div className="space-y-6">
-                    <NeuroCard>
+                    <TunaiCard>
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">Company Information</h3>
                             <div className="flex items-center gap-4">
@@ -323,13 +344,13 @@ ${companyName}`;
                                         accept="image/*"
                                         onChange={handleScanLetterhead} 
                                     />
-                                    <NeuroButton 
+                                    <TunaiButton 
                                         onClick={() => fileInputRef.current?.click()}
                                         disabled={scanning}
                                         className="!p-0 w-10 h-10 rounded-full flex items-center justify-center text-blue-600 shadow-[5px_5px_10px_rgba(163,177,198,0.6),-5px_-5px_10px_rgba(255,255,255,0.5)]"
                                     >
                                         {scanning ? <Loader2 size={18} className="animate-spin" /> : <ScanLine size={18} />}
-                                    </NeuroButton>
+                                    </TunaiButton>
                                     
                                     {/* Glass Hotspot Tooltip */}
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-white/30 backdrop-blur-md border border-white/40 text-[10px] font-bold text-gray-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-sm z-10">
@@ -338,35 +359,35 @@ ${companyName}`;
                                 </div>
                                 
                                 <div className="flex items-center bg-[#e0e5ec] rounded-xl shadow-[inset_4px_4px_8px_rgba(163,177,198,0.6),inset_-4px_-4px_8px_rgba(255,255,255,0.5)] p-0.5">
-                                    <NeuroSelect 
+                                    <TunaiSelect 
                                         value={paperSize} 
                                         onChange={(e) => setPaperSize(e.target.value as any)}
                                         className="!py-1 !px-2 !text-xs !bg-transparent !border-none !shadow-none w-24 h-8 text-gray-600 font-semibold"
                                     >
                                         <option value="a4">A4</option>
                                         <option value="letter">US Letter</option>
-                                    </NeuroSelect>
+                                    </TunaiSelect>
                                 </div>
                             </div>
                         </div>
 
                         <div className="space-y-3">
                             <label className="block text-xs font-bold text-gray-500 uppercase">Company Name</label>
-                            <NeuroInput value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+                            <TunaiInput value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
                             
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase">Registration No</label>
-                                    <NeuroInput value={regNo} onChange={(e) => setRegNo(e.target.value)} />
+                                    <TunaiInput value={regNo} onChange={(e) => setRegNo(e.target.value)} />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase">Phone</label>
-                                    <NeuroInput value={phone} onChange={(e) => setPhone(e.target.value)} />
+                                    <TunaiInput value={phone} onChange={(e) => setPhone(e.target.value)} />
                                 </div>
                             </div>
 
                             <label className="block text-xs font-bold text-gray-500 uppercase">Address</label>
-                            <NeuroTextarea 
+                            <TunaiTextarea 
                                 rows={5} 
                                 value={address} 
                                 onChange={(e) => setAddress(e.target.value)} 
@@ -374,34 +395,34 @@ ${companyName}`;
                             />
                             
                             <label className="block text-xs font-bold text-gray-500 uppercase">Email</label>
-                            <NeuroInput value={email} onChange={(e) => setEmail(e.target.value)} />
+                            <TunaiInput value={email} onChange={(e) => setEmail(e.target.value)} />
                         </div>
-                    </NeuroCard>
+                    </TunaiCard>
 
-                    <NeuroCard title="Case Details">
+                    <TunaiCard title="Case Details">
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase">Year of Assessment</label>
-                                    <NeuroInput value={yearAssessment} onChange={(e) => setYearAssessment(e.target.value)} />
+                                    <TunaiInput value={yearAssessment} onChange={(e) => setYearAssessment(e.target.value)} />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase">Total Amount (RM)</label>
-                                    <NeuroInput value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} />
+                                    <TunaiInput value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} />
                                 </div>
                             </div>
 
                             <label className="block text-xs font-bold text-gray-500 uppercase flex justify-between items-center">
                                 Reason for Loss
-                                <NeuroButton 
-                                    onClick={handlePolishReason} 
+                                <TunaiButton 
+                                    onClick={handleComposeClick} 
                                     disabled={isPolishing} 
                                     className="!py-1 !px-2 !text-[10px] flex items-center gap-1 text-purple-600"
                                 >
-                                    <Sparkles size={10} /> {isPolishing ? 'Refining...' : 'AI Polish'}
-                                </NeuroButton>
+                                    <Sparkles size={10} /> {isPolishing ? 'Refining...' : 'AI Compose'}
+                                </TunaiButton>
                             </label>
-                            <NeuroTextarea 
+                            <TunaiTextarea 
                                 rows={12} 
                                 value={reason} 
                                 onChange={(e) => setReason(e.target.value)} 
@@ -409,41 +430,41 @@ ${companyName}`;
                                 placeholder="Explain why receipts are missing..."
                             />
                         </div>
-                    </NeuroCard>
+                    </TunaiCard>
 
-                    <NeuroCard title="Supporting Docs & Signatory">
+                    <TunaiCard title="Supporting Docs & Signatory">
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase">Voucher Start No.</label>
-                                    <NeuroInput value={voucherStart} onChange={(e) => setVoucherStart(e.target.value)} />
+                                    <TunaiInput value={voucherStart} onChange={(e) => setVoucherStart(e.target.value)} />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase">Voucher End No.</label>
-                                    <NeuroInput value={voucherEnd} onChange={(e) => setVoucherEnd(e.target.value)} />
+                                    <TunaiInput value={voucherEnd} onChange={(e) => setVoucherEnd(e.target.value)} />
                                 </div>
                             </div>
                             
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase">Bank Name</label>
-                                    <NeuroInput value={bankName} onChange={(e) => setBankName(e.target.value)} />
+                                    <TunaiInput value={bankName} onChange={(e) => setBankName(e.target.value)} />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase">Account No</label>
-                                    <NeuroInput value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
+                                    <TunaiInput value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
                                 </div>
                             </div>
 
                             <div className="pt-2 border-t border-gray-300/30 mt-2">
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Signatory</label>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <NeuroInput placeholder="Name" value={signatoryName} onChange={(e) => setSignatoryName(e.target.value)} />
-                                    <NeuroInput placeholder="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} />
+                                    <TunaiInput placeholder="Name" value={signatoryName} onChange={(e) => setSignatoryName(e.target.value)} />
+                                    <TunaiInput placeholder="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} />
                                 </div>
                             </div>
                         </div>
-                    </NeuroCard>
+                    </TunaiCard>
                 </div>
 
                 {/* Right: Preview */}
@@ -451,15 +472,15 @@ ${companyName}`;
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-2">
                             <h3 className="text-lg font-bold text-gray-600">Letter Preview</h3>
-                            <NeuroBadge color="text-gray-500 bg-gray-200 uppercase">{paperSize}</NeuroBadge>
+                            <TunaiBadge color="text-gray-500 bg-gray-200 uppercase">{paperSize}</TunaiBadge>
                         </div>
                         <div className="flex gap-2">
-                            <NeuroButton onClick={handleCopy} className="!py-2 !px-3 text-xs text-gray-600">
+                            <TunaiButton onClick={handleCopy} className="!py-2 !px-3 text-xs text-gray-600">
                                 <Copy size={14} className="mr-1 inline" /> Copy
-                            </NeuroButton>
-                            <NeuroButton onClick={handleDownloadPDF} className="!py-2 !px-3 text-xs text-blue-600">
+                            </TunaiButton>
+                            <TunaiButton onClick={handleDownloadPDF} className="!py-2 !px-3 text-xs text-blue-600">
                                 <Download size={14} className="mr-1 inline" /> PDF
-                            </NeuroButton>
+                            </TunaiButton>
                         </div>
                     </div>
 
@@ -577,7 +598,7 @@ ${companyName}`;
 
              {/* Guidance & Checklist Section */}
              <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <NeuroCard title="Submission Checklist" className="lg:col-span-1 h-full">
+                <TunaiCard title="Submission Checklist" className="lg:col-span-1 h-full">
                     <ul className="space-y-4">
                         {CHECKLIST_ITEMS.map((item, idx) => (
                             <li key={idx} className="flex gap-3 items-start">
@@ -588,9 +609,9 @@ ${companyName}`;
                             </li>
                         ))}
                     </ul>
-                </NeuroCard>
+                </TunaiCard>
 
-                <NeuroCard title="Practical Guidance" className="lg:col-span-2 h-full">
+                <TunaiCard title="Practical Guidance" className="lg:col-span-2 h-full">
                      <div className="space-y-6">
                         <div className="flex gap-4 items-start bg-blue-50 p-4 rounded-xl border border-blue-100">
                             <Info className="text-blue-500 shrink-0 mt-1" size={20} />
@@ -632,8 +653,60 @@ ${companyName}`;
                             </div>
                         </div>
                      </div>
-                </NeuroCard>
+                </TunaiCard>
             </div>
+
+            {/* Smart Compose Modal */}
+            {showComposeModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                    <div className="absolute inset-0" onClick={() => setShowComposeModal(false)}></div>
+                    <TunaiCard className="w-full max-w-md relative z-10 shadow-2xl border-2 border-purple-100 bg-[#e0e5ec]">
+                        <div className="text-center mb-6">
+                            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-4 text-purple-600">
+                                <Sparkles size={24} />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-700">Document Content Detected</h3>
+                            <p className="text-sm text-gray-500 mt-2 px-4">
+                                You already have a drafted explanation. How would you like to proceed with the AI generation?
+                            </p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <button 
+                                onClick={() => executeSmartCompose('REFINE')}
+                                className="w-full p-4 rounded-xl bg-white border border-purple-100 hover:border-purple-300 hover:shadow-md transition-all flex items-center gap-4 group"
+                            >
+                                <div className="bg-purple-50 p-2 rounded-lg text-purple-600 group-hover:bg-purple-100 transition-colors">
+                                    <Edit3 size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-bold text-gray-700 text-sm">Refine / Adjust</div>
+                                    <div className="text-xs text-gray-500">Polish the existing text to be more formal.</div>
+                                </div>
+                            </button>
+
+                            <button 
+                                onClick={() => executeSmartCompose('NEW')}
+                                className="w-full p-4 rounded-xl bg-white border border-blue-100 hover:border-blue-300 hover:shadow-md transition-all flex items-center gap-4 group"
+                            >
+                                <div className="bg-blue-50 p-2 rounded-lg text-blue-600 group-hover:bg-blue-100 transition-colors">
+                                    <RefreshCw size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-bold text-gray-700 text-sm">Generate New</div>
+                                    <div className="text-xs text-gray-500">Reset body to standard template (Keeps Letterhead).</div>
+                                </div>
+                            </button>
+                        </div>
+                        
+                        <div className="mt-6 text-center">
+                            <button onClick={() => setShowComposeModal(false)} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                                Cancel
+                            </button>
+                        </div>
+                    </TunaiCard>
+                </div>
+            )}
         </div>
     );
 };

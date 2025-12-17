@@ -1,0 +1,23 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="blueGradient" x1="20" y1="20" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#60a5fa" />
+    </linearGradient>
+    <filter id="softShadow" x="-10" y="-10" width="220" height="220">
+      <feDropShadow dx="2" dy="4" stdDeviation="6" flood-color="#bfdbfe" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  
+  <!-- Main Container: Stylized Wallet / Document Hybrid -->
+  <rect x="40" y="50" width="120" height="100" rx="20" fill="white" filter="url(#softShadow)" />
+  
+  <!-- Blue Accent Header -->
+  <path d="M40 70C40 58.9543 48.9543 50 60 50H140C151.046 50 160 58.9543 160 70V80H40V70Z" fill="url(#blueGradient)"/>
+  
+  <!-- Check/Tick Mark Symbolizing 'Tunai' (Cash/Done) & Tax Compliance -->
+  <path d="M75 110L90 125L125 90" stroke="#3b82f6" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Decorative Dot -->
+  <circle cx="130" cy="115" r="4" fill="#bfdbfe" />
+</svg>

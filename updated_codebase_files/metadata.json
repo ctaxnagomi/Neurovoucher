@@ -1,6 +1,6 @@
 {
-  "name": "V.0.1.28 NeuroVoucher (DeckerGUI)",
-  "description": "A futuristic, neumorphic Cash Voucher Generator powered by Gemini 2.5 and 3.0 models for automated processing, voice interaction, and image editing.",
+  "name": "Tunai Cukai MY",
+  "description": "A smart Cash Voucher & Tax Compliance System powered by Gemini AI. Tunai Cukai MY helps businesses manage expenses, generate LHDN compliant documents, and audit finances.",
   "requestFramePermissions": [
     "microphone",
     "camera"

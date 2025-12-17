@@ -1,14 +1,25 @@
 <div align="center">
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+
+# TunaiCukai MY
+
+**Credit**: Wan Mohd Azizi (Rikayu Wilzam)
+
 </div>
 
-[![Netlify Status](https://api.netlify.com/api/v1/badges/08c7da37-c406-4769-b290-313c472c97f9/deploy-status)](https://app.netlify.com/projects/neuro-voucher-v1/deploys)
+## Overview
+A smart tax and voucher system designed to simplify cash transaction filing and receipt management.
 
-# Run and deploy your AI Studio app
+## Refactor Change Log (Reference)
+- **[REF-001]**: Refactored Intro Sequence & Animation. Updated flow to "wipe" transition with sequenced text.
+- **[REF-002]**: Refactored Navigation & Live Agent Integration. Optimized sidebar layout and overlay logic.
+- **[REF-003]**: News & In-Depth Tax Logic Integration. Added 2025 Tax Reliefs info tab and LHDN eligibility checking service.
+- **[REF-004]**: Template Designer (E-Invois) Redesign. Implemented split-view editor with real-time preview, LHDN compliant fields (TIN, MSIC), and visual validation (QR, UUID).
+- **[REF-005]**: Localization & Branding. Set Bahasa Malaysia as default, added "E-Invois" localization, and integrated Stripe Climate Badge.
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: <https://ai.studio/apps/drive/1UT7EhGFHxo7t5fXZh2zsgGFrm6Fxcpoy>
+## Documentation
+*   [Configuration Manual](config_manual.md)
+*   [Wireframe Flowchart](wireframe_flow.md)
 
 ## Run Locally
 

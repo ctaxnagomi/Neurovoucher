@@ -3,12 +3,29 @@ import { useNavigate } from 'react-router-dom';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge, NeuroTextarea, NeuroSelect, NeuroToggle } from '../components/NeuroComponents';
 import { generateFastSummary, generateSpeech, extractReceiptData, getLiveClient, extractLetterhead } from '../services/geminiService';
 import { createPcmBlob } from '../services/audioUtils';
-import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins, FileSpreadsheet, MessageSquare, ListTodo, CreditCard, FileType } from 'lucide-react';
+import { Sparkles, Play, Plus, Trash2, Save, Upload, X, Calendar, FileText, AlertTriangle, Building2, User, ScanLine, CheckCircle2, Mic, MicOff, Tag, Info, Image as ImageIcon, Languages, Download, Eye, Mail, Phone, Printer, ShieldCheck, FileCheck, HelpCircle, ExternalLink, Layers, Loader2, ArrowRight, Pencil, Coins, FileSpreadsheet, MessageSquare, ListTodo, CreditCard, FileType, Edit3, RefreshCw } from 'lucide-react';
 import { VoucherItem, SUPPORTED_LANGUAGES } from '../types';
 import { Modality, LiveServerMessage } from '@google/genai';
 import { jsPDF } from "jspdf";
 import { generateDetailedVoucherExcel } from '../lib/export/excel-generator';
 import { useLiveAgent } from '../contexts/LiveAgentContext';
+import { useLanguage } from '../contexts/LanguageContext';
+
+// LHDN Specific Tax Categories
+const LHDN_CATEGORIES = [
+    "General Expense (100% Deductible)",
+    "Entertainment (50% Restricted - PR 4/2015)",
+    "Entertainment (100% Deductible - Staff/Promo)",
+    "Staff Welfare (100% Deductible)",
+    "Travel & Transport (Business Purposes)",
+    "Accommodation (Business Trip)",
+    "Gifts (Restricted - No Logo)",
+    "Gifts (Deductible - With Logo/Advertisement)",
+    "Donations (Approved Inst. Only)",
+    "Repairs & Maintenance",
+    "Professional Fees (Audit/Tax/Secretarial)",
+    "Private/Domestic (Non-Deductible Sec 39)"
+];
 
 // Number to Words Implementation
 const numberToWords = (n: number): string => {
@@ -114,6 +131,7 @@ const AutoFilledIndicator = ({ className }: { className?: string }) => (
 export const VoucherGenerator: React.FC = () => {
   const navigate = useNavigate();
   const { connected } = useLiveAgent();
+  const { t, language } = useLanguage();
 
   // Voucher / Payee Details
   const [payee, setPayee] = useState('');
@@ -152,12 +170,11 @@ export const VoucherGenerator: React.FC = () => {
   const [evidenceRef, setEvidenceRef] = useState('');
 
   // LHDN Tax Compliance
-  const [isTaxDeductible, setIsTaxDeductible] = useState(false);
-  const [taxCategory, setTaxCategory] = useState('');
+  const [isTaxDeductible, setIsTaxDeductible] = useState(true); // Default to deductible
+  const [taxCategory, setTaxCategory] = useState(LHDN_CATEGORIES[0]);
   const [taxCode, setTaxCode] = useState('');
   const [taxReason, setTaxReason] = useState('');
-  const [showLHDNHelp, setShowLHDNHelp] = useState(false);
-
+  
   const [items, setItems] = useState<VoucherItem[]>([
     { id: '1', description: '', amount: 0 }
   ]);
@@ -170,8 +187,7 @@ export const VoucherGenerator: React.FC = () => {
   // OCR Confirmation State
   const [showOCRConfirm, setShowOCRConfirm] = useState(false);
   const [extractedData, setExtractedData] = useState<any>(null);
-  const [showOCRHelp, setShowOCRHelp] = useState(false);
-  const [ocrLanguage, setOcrLanguage] = useState('en');
+  const [ocrLanguage, setOcrLanguage] = useState(language);
   const [errorModal, setErrorModal] = useState<{show: boolean, message: string, title?: string}>({ show: false, message: '' });
 
   // Batch Scan State
@@ -189,6 +205,9 @@ export const VoucherGenerator: React.FC = () => {
   // Progress Tracking
   const [progress, setProgress] = useState(0);
 
+  // Smart Summary State
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+
   // Dictation State
   const [isDictating, setIsDictating] = useState(false);
   const dictationCleanupRef = useRef<() => void>(() => {});
@@ -199,6 +218,11 @@ export const VoucherGenerator: React.FC = () => {
   const logoInputRef = useRef<HTMLInputElement>(null); // For Company Logo
 
   const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+  // Update OCR language when main language changes
+  useEffect(() => {
+      setOcrLanguage(language);
+  }, [language]);
 
   // Calculate Progress Logic
   useEffect(() => {
@@ -370,11 +394,38 @@ export const VoucherGenerator: React.FC = () => {
         alert("Please add item descriptions first.");
         return;
     }
+
+    if (description && description.length > 20) {
+        setShowSummaryModal(true);
+    } else {
+        executeSmartSummary('NEW');
+    }
+  };
+
+  const executeSmartSummary = async (mode: 'NEW' | 'REFINE') => {
+    setShowSummaryModal(false);
     setLoadingAI(true);
-    const prompt = `Summarize these expense items for a formal payment voucher description. Keep it specific and professional for tax audit purposes (LHDN Malaysia compliant). Items: ${validItems.map(i => i.description).join(', ')}`;
-    const summary = await generateFastSummary(prompt);
-    setDescription(summary);
-    setLoadingAI(false);
+    
+    try {
+        const validItems = items.filter(i => i.description.trim().length > 0);
+        // LHDN requires Malay or English output regardless of UI language
+        const targetLang = (language === 'ms') ? 'Bahasa Melayu' : 'English';
+        
+        let prompt = "";
+        
+        if (mode === 'NEW') {
+            prompt = `Summarize these expense items for a formal payment voucher description in ${targetLang}. Keep it specific, professional and compliant with LHDN Malaysia standards. Items: ${validItems.map(i => i.description).join(', ')}`;
+        } else {
+            prompt = `Refine and polish this existing voucher description to be more formal and compliant with LHDN standards in ${targetLang}. Existing Description: "${description}". Items for context: ${validItems.map(i => i.description).join(', ')}`;
+        }
+        
+        const summary = await generateFastSummary(prompt);
+        setDescription(summary.replace(/^"|"$/g, ''));
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setLoadingAI(false);
+    }
   };
 
   const toggleDictation = async () => {
@@ -398,7 +449,7 @@ export const VoucherGenerator: React.FC = () => {
             config: {
                 responseModalities: [Modality.AUDIO],
                 inputAudioTranscription: {},
-                systemInstruction: "You are a passive listener acting as a dictation tool.",
+                systemInstruction: `You are a passive listener acting as a dictation tool. Transcribe user input to ${language}.`,
             },
             callbacks: {
                 onopen: () => {
@@ -474,10 +525,42 @@ export const VoucherGenerator: React.FC = () => {
     return false;
   };
 
+  // Use Translations for Error Messages
+  const parseErrorMessage = (error: any): { title: string, message: string } => {
+      const errStr = error.toString().toLowerCase();
+      const errMsg = (error.message || "").toLowerCase();
+
+      if (errMsg.includes("parsing_failed") || errMsg === "empty_data") {
+          return { title: t('unclearDoc'), message: t('unclearDocDesc') };
+      } else if (errMsg.includes("api_key") || errStr.includes("403") || errStr.includes("401")) {
+          return { title: t('authFailed'), message: t('authFailedDesc') };
+      } else if (errStr.includes("429") || errStr.includes("quota")) {
+          return { title: t('quotaExceeded'), message: t('quotaExceededDesc') };
+      } else if (errStr.includes("503") || errStr.includes("overloaded")) {
+          return { title: t('serviceUnavailable'), message: t('serviceUnavailableDesc') };
+      } else if (errStr.includes("network") || errStr.includes("fetch") || errStr.includes("offline")) {
+          return { title: t('connError'), message: t('connErrorDesc') };
+      } else if (errStr.includes("safety") || errStr.includes("blocked")) {
+          return { title: t('contentFiltered'), message: t('contentFilteredDesc') };
+      }
+      
+      return { title: t('processingError'), message: t('processingErrorDesc') };
+  };
+
   const handleCompanyScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+    if (!validTypes.includes(file.type)) {
+        setErrorModal({ show: true, title: t('unsupportedFile'), message: t('unsupportedFileDesc') });
+        if (companyDocInputRef.current) companyDocInputRef.current.value = '';
+        return;
+    }
+
     setScanning(true);
+    setErrorModal({ show: false, message: '' });
+
     try {
         const reader = new FileReader();
         reader.onloadend = async () => {
@@ -497,6 +580,9 @@ export const VoucherGenerator: React.FC = () => {
                 apply(companyTel, data.phone, setCompanyTel, 'companyTel', PLACEHOLDERS.companyTel);
                 apply(companyEmail, data.email, setCompanyEmail, 'companyEmail', PLACEHOLDERS.companyEmail);
                 setAutoFilledFields(newAutoFilled);
+            } else {
+                 // Explicitly handle null data as extraction failure
+                 throw new Error("EMPTY_DATA");
             }
             setScanning(false);
         };
@@ -504,6 +590,8 @@ export const VoucherGenerator: React.FC = () => {
     } catch (error) {
         console.error(error);
         setScanning(false);
+        const { title, message } = parseErrorMessage(error);
+        setErrorModal({ show: true, title, message });
     }
     if (companyDocInputRef.current) companyDocInputRef.current.value = '';
   };
@@ -512,21 +600,42 @@ export const VoucherGenerator: React.FC = () => {
     setErrorModal({ show: false, message: '' }); 
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+    if (!validTypes.includes(file.type)) {
+        setErrorModal({ show: true, title: t('unsupportedFile'), message: t('unsupportedFileDesc') });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+    }
+
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+        setErrorModal({ show: true, title: t('fileTooLarge'), message: t('fileTooLargeDesc') });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+    }
+
     setScanning(true);
     const reader = new FileReader();
     reader.onloadend = async () => {
         try {
             const base64String = (reader.result as string).split(',')[1];
+            // Pass the current selected language to the OCR engine
             const data = await extractReceiptData(base64String, ocrLanguage);
             if (!data || Object.keys(data).length === 0) throw new Error("EMPTY_DATA");
             setExtractedData(data);
             setShowOCRConfirm(true);
         } catch (error: any) {
             console.error("OCR Error:", error);
-            setErrorModal({ show: true, message: "Failed to process receipt.", title: "Scan Failed" });
+            const { title, message } = parseErrorMessage(error);
+            setErrorModal({ show: true, title, message });
         } finally {
             setScanning(false);
         }
+    };
+    reader.onerror = () => {
+        setErrorModal({ show: true, title: t('scanFailed'), message: t('processingErrorDesc') });
+        setScanning(false);
     };
     reader.readAsDataURL(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -659,9 +768,11 @@ export const VoucherGenerator: React.FC = () => {
         }
     }
     if (sourceData.taxCategory) {
-        const matchedCat = categories.find(c => c.toLowerCase().includes(sourceData.taxCategory.toLowerCase()));
-        if (matchedCat) applyIfEligible(category, matchedCat, 'category', setCategory, categories[0]);
-        applyIfEligible(taxCategory, sourceData.taxCategory, 'taxCategory', setTaxCategory, PLACEHOLDERS.taxCategory);
+        // Find rough match
+        const matchedLHDN = LHDN_CATEGORIES.find(c => c.toLowerCase().includes(sourceData.taxCategory.toLowerCase().split(' ')[0]));
+        if (matchedLHDN) {
+             applyIfEligible(taxCategory, matchedLHDN, 'taxCategory', setTaxCategory, LHDN_CATEGORIES[0]);
+        }
     }
     if (sourceData.taxReason) applyIfEligible(description, sourceData.taxReason, 'description', setDescription, PLACEHOLDERS.description);
     if (sourceData.taxDeductible !== undefined && (!isTaxDeductible || autoFilledFields.has('isTaxDeductible'))) {
@@ -842,7 +953,7 @@ export const VoucherGenerator: React.FC = () => {
         doc.text(`Ringgit Malaysia: ${toWords(total)}`, leftM, y);
         
         // --- 5. Signatories ---
-        y = 240; // Push to bottom area
+        y = 220; // Push to bottom area
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         
@@ -857,10 +968,29 @@ export const VoucherGenerator: React.FC = () => {
         doc.line(leftM+120, y, leftM+160, y);
         doc.text("Received By", leftM+120, y+5);
         doc.text(payee, leftM+120, y+10);
+
+        // --- 6. Tax Compliance Box (Bottom) ---
+        const taxBoxY = 250;
+        doc.setDrawColor(150, 150, 150);
+        doc.setLineWidth(0.1);
+        doc.rect(leftM, taxBoxY, 175, 25);
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text("FOR OFFICE USE / TAX COMPLIANCE", leftM + 2, taxBoxY + 4);
+        
+        doc.setFont("helvetica", "normal");
+        doc.text(`LHDN Tax Category: ${taxCategory}`, leftM + 2, taxBoxY + 9);
+        doc.text(`Deductible Status: ${isTaxDeductible ? "YES (Sec 33)" : "NO (Sec 39)"}`, leftM + 2, taxBoxY + 14);
+        if(taxCode) doc.text(`Tax Code / Ref: ${taxCode}`, leftM + 100, taxBoxY + 9);
+        if(taxReason) {
+             const splitReason = doc.splitTextToSize(`Reason: ${taxReason}`, 170);
+             doc.text(splitReason, leftM + 2, taxBoxY + 19);
+        }
         
         // Footer Note
         doc.setFontSize(7);
-        doc.text("Computer Generated Voucher - NeuroVoucher AI System", 105, 280, { align: 'center' });
+        doc.text("Computer Generated Voucher - Tunai Cukai MY System", 105, 280, { align: 'center' });
 
         if (mode === 'download') doc.save(`Voucher_${voucherNo || 'Draft'}.pdf`);
         else {
@@ -936,6 +1066,14 @@ export const VoucherGenerator: React.FC = () => {
                         <td style="border-top: 1px solid black; width: 30%;">Received By: ${payee}</td>
                     </tr>
                 </table>
+                
+                <br/><br/>
+                <div style="border: 1px solid #ccc; padding: 10px; font-size: 10px;">
+                    <strong>FOR OFFICE USE / TAX COMPLIANCE</strong><br/>
+                    Category: ${taxCategory}<br/>
+                    Deductible: ${isTaxDeductible ? "YES" : "NO"}<br/>
+                    Code: ${taxCode}
+                </div>
             </body></html>
         `;
 
@@ -965,9 +1103,9 @@ export const VoucherGenerator: React.FC = () => {
       {/* Header with Compliance Tracker */}
       <div className="flex flex-col lg:flex-row justify-between items-start gap-4">
         <div className="flex-1">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-700 tracking-tight">New Cash Voucher</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-700 tracking-tight">{t('newVoucher')}</h2>
             <div className="flex items-center gap-2">
-                <p className="text-sm text-gray-500 mt-1">Generate a new payment voucher with AI assistance</p>
+                <p className="text-sm text-gray-500 mt-1">{t('newVoucherDesc')}</p>
                 {connected && (
                     <div className="text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200 animate-pulse flex items-center gap-1 mt-1">
                          <Mic size={10} /> Live Agent Connected
@@ -980,7 +1118,7 @@ export const VoucherGenerator: React.FC = () => {
         <div className="w-full lg:w-96 bg-white rounded-2xl p-4 shadow-lg border border-purple-100 flex flex-col gap-3 relative overflow-hidden group">
             <div className="flex justify-between items-center z-10">
                 <h3 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
-                    <ListTodo size={14} className="text-purple-500" /> Compliance Progress
+                    <ListTodo size={14} className="text-purple-500" /> {t('complianceProgress')}
                 </h3>
                 <span className={`text-xs font-bold ${progress === 100 ? 'text-green-600' : 'text-purple-600'}`}>{progress}%</span>
             </div>
@@ -1019,10 +1157,10 @@ export const VoucherGenerator: React.FC = () => {
             <input type="file" ref={batchInputRef} className="hidden" accept="image/*" onChange={handleBatchScan} multiple />
 
             <NeuroButton onClick={() => fileInputRef.current?.click()} disabled={scanning} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm">
-                <Upload size={16} /> Upload Receipt
+                <Upload size={16} /> {t('uploadReceipt')}
             </NeuroButton>
             <NeuroButton onClick={handleReadAloud} disabled={playingAudio} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-sm">
-                <Play size={16} /> Read Aloud
+                <Play size={16} /> {t('readAloud')}
             </NeuroButton>
       </div>
 
@@ -1032,7 +1170,7 @@ export const VoucherGenerator: React.FC = () => {
         <div className="xl:col-span-4 h-full">
             <NeuroCard className="h-full">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">Company Information</h3>
+                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">{t('companyInfo')}</h3>
                     <input type="file" ref={companyDocInputRef} onChange={handleCompanyScan} className="hidden" accept="image/*" />
                     <button onClick={() => companyDocInputRef.current?.click()} className="text-xs flex items-center gap-2 text-blue-500 bg-blue-50 px-2 py-1 rounded-md">
                         <ScanLine size={14} /> Auto-fill
@@ -1059,7 +1197,7 @@ export const VoucherGenerator: React.FC = () => {
 
                     {/* Named Inputs for AI Access */}
                     <div className="relative">
-                        <label className="block text-sm text-gray-500 mb-2">Company Name</label>
+                        <label className="block text-sm text-gray-500 mb-2">{t('companyName')}</label>
                         <div className="relative">
                             <NeuroInput 
                                 name="companyName" 
@@ -1072,14 +1210,14 @@ export const VoucherGenerator: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Registration No</label>
+                        <label className="block text-sm text-gray-500 mb-2">{t('regNo')}</label>
                         <div className="relative">
                             <NeuroInput name="companyRegNo" value={companyRegNo} onChange={(e) => { setCompanyRegNo(e.target.value); handleFieldChange('companyRegNo'); }} placeholder={PLACEHOLDERS.companyRegNo} className={getAutoFillClass('companyRegNo')} />
                             {autoFilledFields.has('companyRegNo') && <AutoFilledIndicator />}
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Address</label>
+                        <label className="block text-sm text-gray-500 mb-2">{t('address')}</label>
                         <div className="relative">
                             <NeuroTextarea name="companyAddress" value={companyAddress} onChange={(e) => { setCompanyAddress(e.target.value); handleFieldChange('companyAddress'); }} placeholder={PLACEHOLDERS.companyAddress} className={`resize-none ${getAutoFillClass('companyAddress')}`} />
                             {autoFilledFields.has('companyAddress') && <AutoFilledIndicator />}
@@ -1087,11 +1225,11 @@ export const VoucherGenerator: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-1 gap-4">
                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">Tel</label>
+                            <label className="block text-xs text-gray-500 mb-1">{t('tel')}</label>
                             <NeuroInput name="companyTel" value={companyTel} onChange={(e) => { setCompanyTel(e.target.value); handleFieldChange('companyTel'); }} placeholder={PLACEHOLDERS.companyTel} className={getAutoFillClass('companyTel')} />
                          </div>
                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">Email</label>
+                            <label className="block text-xs text-gray-500 mb-1">{t('email')}</label>
                             <NeuroInput name="companyEmail" value={companyEmail} onChange={(e) => { setCompanyEmail(e.target.value); handleFieldChange('companyEmail'); }} placeholder={PLACEHOLDERS.companyEmail} className={getAutoFillClass('companyEmail')} />
                          </div>
                     </div>
@@ -1101,21 +1239,21 @@ export const VoucherGenerator: React.FC = () => {
 
         {/* Section 2: Voucher Details */}
         <div className="xl:col-span-8 space-y-6">
-            <NeuroCard title="Voucher Details">
+            <NeuroCard title={t('voucherDetails')}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Voucher No.</label>
+                        <label className="block text-sm text-gray-500 mb-2">{t('voucherNo')}</label>
                         <NeuroInput name="voucherNo" value={voucherNo} onChange={(e) => setVoucherNo(e.target.value)} placeholder={PLACEHOLDERS.voucherNo} />
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Voucher Date</label>
+                        <label className="block text-sm text-gray-500 mb-2">{t('voucherDate')}</label>
                         <div className="relative">
                              <NeuroInput name="date" type="date" value={voucherDate} onChange={(e) => { setVoucherDate(e.target.value); handleFieldChange('voucherDate'); }} className={getAutoFillClass('voucherDate')} />
                              {autoFilledFields.has('voucherDate') && <AutoFilledIndicator />}
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Category</label>
+                        <label className="block text-sm text-gray-500 mb-2">{t('category')}</label>
                         <div className="relative">
                             <NeuroSelect name="category" value={category} onChange={(e) => setCategory(e.target.value)} className={getAutoFillClass('category')}>
                                 {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
@@ -1126,18 +1264,18 @@ export const VoucherGenerator: React.FC = () => {
                     {/* Payee Details Group */}
                     <div className="md:col-span-2 pt-4 border-t border-gray-200/50">
                         <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                            <User size={14} /> Payee & Payment Info
+                            <User size={14} /> {t('payeeInfo')}
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm text-gray-500 mb-2">Payee Name</label>
+                                <label className="block text-sm text-gray-500 mb-2">{t('payeeName')}</label>
                                 <div className="relative">
                                     <NeuroInput name="payee" value={payee} onChange={(e) => { setPayee(e.target.value); handleFieldChange('payee'); }} placeholder={PLACEHOLDERS.payee} className={getAutoFillClass('payee')} />
                                     {autoFilledFields.has('payee') && <AutoFilledIndicator />}
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm text-gray-500 mb-2">Payee IC/Reg</label>
+                                <label className="block text-sm text-gray-500 mb-2">{t('payeeIc')}</label>
                                 <div className="relative">
                                     <NeuroInput name="payeeIc" value={payeeIc} onChange={(e) => { setPayeeIc(e.target.value); handleFieldChange('payeeIc'); }} placeholder={PLACEHOLDERS.payeeIc} className={getAutoFillClass('payeeIc')} />
                                 </div>
@@ -1147,7 +1285,7 @@ export const VoucherGenerator: React.FC = () => {
                                 <NeuroInput name="payeeAddress" value={payeeAddress} onChange={(e) => setPayeeAddress(e.target.value)} placeholder={PLACEHOLDERS.payeeAddress} />
                             </div>
                             <div>
-                                <label className="block text-sm text-gray-500 mb-2">Payment Method</label>
+                                <label className="block text-sm text-gray-500 mb-2">{t('paymentMethod')}</label>
                                 <NeuroSelect name="paymentMethod" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
                                     <option value="Online Transfer">Online Transfer / DuitNow</option>
                                     <option value="Cheque">Cheque</option>
@@ -1156,7 +1294,7 @@ export const VoucherGenerator: React.FC = () => {
                                 </NeuroSelect>
                             </div>
                              <div>
-                                <label className="block text-sm text-gray-500 mb-2">Bank Name</label>
+                                <label className="block text-sm text-gray-500 mb-2">{t('bankName')}</label>
                                 <NeuroInput name="bankName" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder={PLACEHOLDERS.bankName} disabled={paymentMethod === 'Cash'} className={paymentMethod === 'Cash' ? 'opacity-50' : ''} />
                             </div>
                             <div className="md:col-span-2">
@@ -1182,10 +1320,10 @@ export const VoucherGenerator: React.FC = () => {
 
                     <div className="md:col-span-2">
                         <div className="flex justify-between items-center mb-2">
-                            <label className="text-sm text-gray-500">Description</label>
+                            <label className="text-sm text-gray-500">{t('desc')}</label>
                             <div className="flex gap-2">
-                                <NeuroButton onClick={toggleDictation} active={isDictating} className="!py-1.5 !px-3 text-xs">{isDictating ? 'Stop' : 'Dictate'}</NeuroButton>
-                                <NeuroButton onClick={handleAISummary} disabled={loadingAI} className="!py-1.5 !px-3 text-xs">AI Summarize</NeuroButton>
+                                <NeuroButton onClick={toggleDictation} active={isDictating} className="!py-1.5 !px-3 text-xs">{isDictating ? t('stop') : t('dictate')}</NeuroButton>
+                                <NeuroButton onClick={handleAISummary} disabled={loadingAI} className="!py-1.5 !px-3 text-xs">{t('aiSummarize')}</NeuroButton>
                             </div>
                         </div>
                         <div className="relative">
@@ -1197,7 +1335,7 @@ export const VoucherGenerator: React.FC = () => {
             </NeuroCard>
 
             {/* LHDN Tax Compliance Section */}
-            <NeuroCard title="LHDN Tax Compliance" className="mt-6">
+            <NeuroCard title={t('taxCompliance')} className="mt-6">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                     <div>
                         <NeuroToggle 
@@ -1210,11 +1348,35 @@ export const VoucherGenerator: React.FC = () => {
                             <Info size={12} className="inline mr-1" />
                             Only expenses wholly and exclusively incurred in the production of gross income are deductible under Sec 33(1) ITA 1967.
                         </div>
+                        
+                        <div className="mt-4">
+                            <label className="block text-sm text-gray-500 mb-2">Reasoning (Optional)</label>
+                            <NeuroTextarea 
+                                name="taxReason" 
+                                value={taxReason} 
+                                onChange={(e) => { setTaxReason(e.target.value); handleFieldChange('taxReason'); }} 
+                                placeholder={PLACEHOLDERS.taxReason} 
+                                rows={2}
+                                className={getAutoFillClass('taxReason')} 
+                            />
+                        </div>
                     </div>
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm text-gray-500 mb-2">Tax Category</label>
-                            <NeuroInput name="taxCategory" value={taxCategory} onChange={(e) => { setTaxCategory(e.target.value); handleFieldChange('taxCategory'); }} placeholder={PLACEHOLDERS.taxCategory} className={getAutoFillClass('taxCategory')} />
+                            <label className="block text-sm text-gray-500 mb-2">Tax Category (Public Ruling)</label>
+                            <div className="relative">
+                                <NeuroSelect 
+                                    name="taxCategory" 
+                                    value={taxCategory} 
+                                    onChange={(e) => { setTaxCategory(e.target.value); handleFieldChange('taxCategory'); }} 
+                                    className={getAutoFillClass('taxCategory')}
+                                >
+                                    {LHDN_CATEGORIES.map((cat, i) => (
+                                        <option key={i} value={cat}>{cat}</option>
+                                    ))}
+                                </NeuroSelect>
+                                {autoFilledFields.has('taxCategory') && <AutoFilledIndicator />}
+                            </div>
                         </div>
                          <div>
                             <label className="block text-sm text-gray-500 mb-2">Tax Code / Limit</label>
@@ -1229,13 +1391,13 @@ export const VoucherGenerator: React.FC = () => {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8">
         {/* Section 3: Line Items */}
         <div className="xl:col-span-2">
-            <NeuroCard title="Line Items" className="h-full">
+            <NeuroCard title={t('lineItems')} className="h-full">
                 <div className="space-y-4">
                     {items.map((item, index) => (
                         <div key={item.id} className="group p-4 rounded-xl bg-white/30 border border-white/40 shadow-sm flex flex-col md:flex-row gap-4 items-center">
                             <div className="hidden md:block text-gray-400 font-mono font-bold text-sm w-8">{index + 1}.</div>
                             <div className="w-full md:flex-1">
-                                <label className="md:hidden text-xs text-gray-500 mb-1 block">Description</label>
+                                <label className="md:hidden text-xs text-gray-500 mb-1 block">{t('desc')}</label>
                                 <NeuroInput name={`item-${item.id}-description`} value={item.description} onChange={(e) => updateItem(item.id, 'description', e.target.value)} className={WHITE_INPUT_THEME} />
                             </div>
                             <div className="w-full md:w-40 relative">
@@ -1245,16 +1407,16 @@ export const VoucherGenerator: React.FC = () => {
                             <button onClick={() => deleteItem(item.id)} className="text-gray-400 hover:text-red-600 p-2"><Trash2 size={20} /></button>
                         </div>
                     ))}
-                    <NeuroButton onClick={addItem} className="text-sm w-full md:w-auto"><Plus size={16} className="inline mr-2" /> Add Item</NeuroButton>
+                    <NeuroButton onClick={addItem} className="text-sm w-full md:w-auto"><Plus size={16} className="inline mr-2" /> {t('addItem')}</NeuroButton>
                 </div>
             </NeuroCard>
         </div>
 
         {/* Section 4: Summary */}
         <div className="xl:col-span-1">
-            <NeuroCard title="Summary" className="h-full flex flex-col justify-between">
+            <NeuroCard title={t('summary')} className="h-full flex flex-col justify-between">
                 <div className="flex flex-col items-center justify-center flex-1 py-6 space-y-4">
-                    <div className="text-sm text-gray-500 uppercase tracking-wider">Total Amount</div>
+                    <div className="text-sm text-gray-500 uppercase tracking-wider">{t('totalAmount')}</div>
                     <div className="text-3xl sm:text-5xl font-bold text-gray-700">RM {total.toFixed(2)}</div>
                     <NeuroBadge color="text-blue-600 bg-blue-100/50 px-4 py-1">Draft</NeuroBadge>
                 </div>
@@ -1271,14 +1433,14 @@ export const VoucherGenerator: React.FC = () => {
                     </div>
 
                     <NeuroButton onClick={handlePreviewPDF} className="w-full text-gray-600 text-sm py-3 flex items-center justify-center gap-2 bg-gray-200 hover:bg-gray-300">
-                        <Eye size={16} /> Preview PDF
+                        <Eye size={16} /> {t('previewPdf')}
                     </NeuroButton>
                     <NeuroButton onClick={handleDownloadPDF} className="w-full text-red-600 text-sm py-3 flex items-center justify-center gap-2">
-                        <Download size={16} /> Download PDF
+                        <Download size={16} /> {t('downloadPdf')}
                     </NeuroButton>
                     <div className="flex gap-3">
                         <NeuroButton onClick={() => executeSaveVoucher('DRAFT')} disabled={saving} className="flex-1 text-gray-600 text-sm">Draft</NeuroButton>
-                        <NeuroButton onClick={handleSaveClick} disabled={saving} className="flex-1 text-blue-600 text-sm font-bold">Save</NeuroButton>
+                        <NeuroButton onClick={handleSaveClick} disabled={saving} className="flex-1 text-blue-600 text-sm font-bold">{t('save')}</NeuroButton>
                     </div>
                 </div>
             </NeuroCard>
@@ -1351,7 +1513,7 @@ export const VoucherGenerator: React.FC = () => {
                     <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4 text-red-600">
                         <AlertTriangle size={24} />
                     </div>
-                    <h3 className="text-lg font-bold text-gray-700 mb-2">{errorModal.title || "Scan Failed"}</h3>
+                    <h3 className="text-lg font-bold text-gray-700 mb-2">{errorModal.title || t('scanFailed')}</h3>
                     <p className="text-sm text-gray-500 mb-6 px-2">{errorModal.message}</p>
                     <div className="flex gap-3 justify-center">
                         <NeuroButton onClick={() => setErrorModal({ ...errorModal, show: false })} className="text-sm">Dismiss</NeuroButton>
@@ -1439,6 +1601,58 @@ export const VoucherGenerator: React.FC = () => {
                      <NeuroButton onClick={() => executeSaveVoucher('COMPLETED')} className="text-white bg-blue-600">Confirm & Save</NeuroButton>
                  </div>
             </NeuroCard>
+          </div>
+      )}
+
+      {/* Smart Summary Modal */}
+      {showSummaryModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="absolute inset-0" onClick={() => setShowSummaryModal(false)}></div>
+              <NeuroCard className="w-full max-w-md relative z-10 shadow-2xl border-2 border-purple-100 bg-[#e0e5ec]">
+                  <div className="text-center mb-6">
+                      <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-4 text-purple-600">
+                          <Sparkles size={24} />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-700">Existing Description Detected</h3>
+                      <p className="text-sm text-gray-500 mt-2 px-4">
+                          You already have a description. How would you like the AI to proceed?
+                      </p>
+                  </div>
+
+                  <div className="space-y-3">
+                      <button 
+                          onClick={() => executeSmartSummary('REFINE')}
+                          className="w-full p-4 rounded-xl bg-white border border-purple-100 hover:border-purple-300 hover:shadow-md transition-all flex items-center gap-4 group"
+                      >
+                          <div className="bg-purple-50 p-2 rounded-lg text-purple-600 group-hover:bg-purple-100 transition-colors">
+                              <Edit3 size={20} />
+                          </div>
+                          <div className="text-left">
+                              <div className="font-bold text-gray-700 text-sm">Refine Existing</div>
+                              <div className="text-xs text-gray-500">Polish grammar and tone while keeping context.</div>
+                          </div>
+                      </button>
+
+                      <button 
+                          onClick={() => executeSmartSummary('NEW')}
+                          className="w-full p-4 rounded-xl bg-white border border-blue-100 hover:border-blue-300 hover:shadow-md transition-all flex items-center gap-4 group"
+                      >
+                          <div className="bg-blue-50 p-2 rounded-lg text-blue-600 group-hover:bg-blue-100 transition-colors">
+                              <RefreshCw size={20} />
+                          </div>
+                          <div className="text-left">
+                              <div className="font-bold text-gray-700 text-sm">Generate New</div>
+                              <div className="text-xs text-gray-500">Create fresh summary from line items.</div>
+                          </div>
+                      </button>
+                  </div>
+                  
+                  <div className="mt-6 text-center">
+                      <button onClick={() => setShowSummaryModal(false)} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                          Cancel
+                      </button>
+                  </div>
+              </NeuroCard>
           </div>
       )}
     </div>

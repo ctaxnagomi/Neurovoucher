@@ -1,10 +1,33 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { NeuroCard, NeuroInput, NeuroButton } from '../components/NeuroComponents';
+import { TunaiCard, TunaiInput, TunaiButton } from '../components/TunaiComponents';
 import { createChatSession } from '../services/geminiService';
-import { Send, Bot, User, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Sparkles, ExternalLink, Globe } from 'lucide-react';
 import { ChatMessage } from '../types';
 import { CHECKLIST_ITEMS } from './LHDNLetterGenerator';
+
+const OFFLINE_KB = [
+    {
+        keywords: ['tax rate', 'tax', 'rate', 'percentage', 'how much'],
+        answer: "Current Tax Rates (YA 2024) for Resident Individuals:\n\n• 0 - 5,000: 0%\n• 5,001 - 20,000: 1%\n• 20,001 - 35,000: 3%\n• 35,001 - 50,000: 6%\n• 50,001 - 70,000: 11%\n• 70,001 - 100,000: 19%\n• 100,001+: 25-30%\n\n(Rates subject to LHDN annual updates)",
+        related: ['Tax Reliefs', 'Deductions', 'Receipt Requirements']
+    },
+    {
+        keywords: ['receipt', 'keep', 'store', 'evidence', 'missing'],
+        answer: "LHDN requires you to keep all original receipts for at least 7 years. Thermal receipts often fade, so it is highly recommended to:\n\n1. Scan/Photograph them (digital copies are accepted if clear).\n2. Photocopy them onto A4 paper.\n3. Store them in a cool, dark place.",
+        related: ['Digital Copies', 'Missing Receipt', 'Categories']
+    },
+    {
+        keywords: ['relief', 'deduction', 'lifestyle', 'insurance', 'medical'],
+        answer: "Common Tax Reliefs (YA 2024):\n\n• Individual: RM9,000\n• EPF/KWSP: Up to RM4,000\n• Life Insurance: Up to RM3,000\n• Lifestyle (Books, PC, Gym): Up to RM2,500\n• Medical Insurance: Up to RM3,000\n• SSPN: Up to RM8,000",
+        related: ['Tax Rates', 'Lifestyle Relief', 'Medical Relief']
+    },
+    {
+        keywords: ['digital', 'softcopy', 'photo', 'scan'],
+        answer: "Yes, LHDN accepts digital copies of receipts as valid documentation, provided they are clear, legible, and contain all necessary details (Date, Supplier, Amount, Description).",
+        related: ['Receipt Requirements', 'Backup']
+    }
+];
 
 export const ChatAssistant: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -31,6 +54,7 @@ ${CHECKLIST_ITEMS.map((item, i) => `${i+1}. ${item}`).join('\n')}
 Instruction:
 - Reference the checklist items when the user asks about compliance.
 - Guide them through the voucher creation process if they seem stuck.
+- You have the ability to SEARCH the web. Use it for latest rates.
 `;
         chatSessionRef.current = createChatSession(context);
     }
@@ -41,7 +65,6 @@ Instruction:
     const state = location.state as { initialInput?: string };
     if (state?.initialInput) {
         setInput(state.initialInput);
-        // Clear history state to prevent re-filling on refresh (optional, depends on router behavior)
         window.history.replaceState({}, document.title);
     }
   }, [location]);
@@ -50,34 +73,81 @@ Instruction:
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isTyping) return;
+  const processOfflineResponse = (query: string) => {
+      const lowerQuery = query.toLowerCase();
+      const match = OFFLINE_KB.find(item => item.keywords.some(k => lowerQuery.includes(k)));
 
-    const userMsg: ChatMessage = { role: 'user', text: input, timestamp: Date.now() };
+      if (match) {
+          return {
+              text: match.answer,
+              related: match.related
+          };
+      }
+
+      return {
+          text: "I am currently in Offline Mode. I cannot access the live internet or Gemini API, but I can answer basic questions from my internal LHDN database.\n\nHere are some topics I can help with:",
+          related: ['Tax Rates', 'Receipt Rules', 'Tax Reliefs', 'Digital Copies']
+      };
+  };
+
+  const handleSend = async (overrideInput?: string) => {
+    const textToSend = overrideInput || input;
+    if (!textToSend.trim() || isTyping) return;
+
+    const userMsg: ChatMessage = { role: 'user', text: textToSend, timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
 
+    if (mode === 'Offline' || mode === 'Local') {
+        // Offline / Local Simulation
+        setTimeout(() => {
+            const response = processOfflineResponse(textToSend);
+            setMessages(prev => [...prev, { 
+                role: 'model', 
+                text: response.text, 
+                timestamp: Date.now(),
+                relatedQuestions: response.related
+            }]);
+            setIsTyping(false);
+        }, 800);
+        return;
+    }
+
     try {
-        const result = await chatSessionRef.current.sendMessageStream(userMsg.text);
+        const result = await chatSessionRef.current.sendMessageStream({ message: userMsg.text });
         
         let fullText = "";
+        let collectedGrounding: any[] = [];
         const botMsgId = Date.now();
         
         // Add placeholder
         setMessages(prev => [...prev, { role: 'model', text: '', timestamp: botMsgId }]);
 
         for await (const chunk of result) {
-            const chunkText = chunk.text();
-            fullText += chunkText;
+            const chunkText = chunk.text;
+            if (chunkText) {
+                fullText += chunkText;
+            }
+            
+            const groundingChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
+            if (groundingChunks) {
+                collectedGrounding = [...collectedGrounding, ...groundingChunks];
+            }
             
             setMessages(prev => prev.map(msg => 
-                msg.timestamp === botMsgId ? { ...msg, text: fullText } : msg
+                msg.timestamp === botMsgId ? { ...msg, text: fullText, grounding: collectedGrounding } : msg
             ));
         }
 
     } catch (error) {
-        setMessages(prev => [...prev, { role: 'model', text: "Sorry, I encountered an error connecting to Gemini.", timestamp: Date.now() }]);
+        console.error(error);
+        setMessages(prev => [...prev, { 
+            role: 'model', 
+            text: "Sorry, I encountered an error connecting to Gemini. Would you like to switch to Offline mode to access basic LHDN info?", 
+            timestamp: Date.now(),
+            relatedQuestions: ['Switch to Offline Mode']
+        }]);
     } finally {
         setIsTyping(false);
     }
@@ -85,16 +155,16 @@ Instruction:
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
-        <NeuroCard className="flex-1 flex flex-col overflow-hidden mb-6 relative">
+        <TunaiCard className="flex-1 flex flex-col overflow-hidden mb-6 relative">
             {/* Custom Header Layout */}
             <div className="mb-4 border-b border-gray-200/50 pb-3 flex justify-between items-start">
                  <div>
                     <div className="border border-dashed border-blue-300 rounded px-2 py-0.5 w-fit mb-2 bg-blue-50/50">
                         <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">GEMINI 3 PRO ADVISOR</h4>
                     </div>
-                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">NEURO COUNCIL (AI ADVISOR AND AGENTIC ASSISTANCE)</h3>
+                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider">TUNAICUKAI COUNCIL (AI ADVISOR AND AGENTIC ASSISTANCE)</h3>
                     <p className="text-[10px] text-red-400 font-bold mt-1 tracking-wide uppercase">
-                        Powered by Thinking, Deep Research, Nano and AIOCR Model
+                        Powered by Thinking 32k, Deep Research & Google Search
                     </p>
                  </div>
                  
@@ -123,12 +193,61 @@ Instruction:
                             }`}>
                                 {msg.role === 'user' ? <User size={20} /> : <Bot size={20} />}
                             </div>
-                            <div className={`px-5 py-4 rounded-2xl text-sm leading-relaxed ${
-                                msg.role === 'user' 
-                                ? 'bg-[#e0e5ec] text-gray-800 rounded-br-none border border-white/50 shadow-[5px_5px_10px_rgba(163,177,198,0.5),-5px_-5px_10px_rgba(255,255,255,0.6)]' 
-                                : 'bg-white/60 text-gray-800 rounded-bl-none border border-white/60 shadow-sm'
-                            }`}>
-                                {msg.text}
+                            <div className={`flex flex-col gap-2`}>
+                                <div className={`px-5 py-4 rounded-2xl text-sm leading-relaxed ${
+                                    msg.role === 'user' 
+                                    ? 'bg-[#e0e5ec] text-gray-800 rounded-br-none border border-white/50 shadow-[5px_5px_10px_rgba(163,177,198,0.5),-5px_-5px_10px_rgba(255,255,255,0.6)]' 
+                                    : 'bg-white/60 text-gray-800 rounded-bl-none border border-white/60 shadow-sm'
+                                }`}>
+                                    <div className="whitespace-pre-wrap">{msg.text}</div>
+                                    
+                                    {/* Grounding Sources Display */}
+                                    {msg.grounding && msg.grounding.length > 0 && (
+                                        <div className="mt-4 pt-3 border-t border-gray-200/50">
+                                            <div className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1 mb-2">
+                                                <Globe size={10} /> Sources Found
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {msg.grounding.map((chunk: any, i: number) => (
+                                                    chunk.web?.uri && (
+                                                        <a 
+                                                            key={i} 
+                                                            href={chunk.web.uri} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-1 text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-md border border-blue-100 hover:bg-blue-100 transition-colors truncate max-w-[200px]"
+                                                        >
+                                                            <ExternalLink size={8} />
+                                                            <span className="truncate">{chunk.web.title || chunk.web.uri}</span>
+                                                        </a>
+                                                    )
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Related Questions / Actions */}
+                                    {msg.relatedQuestions && msg.relatedQuestions.length > 0 && (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            {msg.relatedQuestions.map((q, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => {
+                                                        if (q === 'Switch to Offline Mode') {
+                                                            setMode('Offline');
+                                                            handleSend('Switching to Offline Mode...');
+                                                        } else {
+                                                            handleSend(q);
+                                                        }
+                                                    }}
+                                                    className="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 font-medium px-3 py-1.5 rounded-lg border border-purple-100 transition-colors"
+                                                >
+                                                    {q}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -137,7 +256,9 @@ Instruction:
                      <div className="flex justify-start">
                         <div className="flex items-center gap-2 ml-14 bg-white/30 px-4 py-2 rounded-full">
                             <Sparkles size={14} className="text-purple-500 animate-spin" />
-                            <span className="text-xs text-purple-600 font-medium animate-pulse">Gemini is thinking...</span>
+                            <span className="text-xs text-purple-600 font-medium animate-pulse">
+                                {mode === 'Cloud' ? 'Gemini 3 Pro is thinking...' : 'Searching Offline Database...'}
+                            </span>
                         </div>
                      </div>
                 )}
@@ -146,16 +267,16 @@ Instruction:
             
             <div className="mt-4 pt-2 flex items-center gap-3">
                 <div className="flex-1">
-                    <NeuroInput 
+                    <TunaiInput 
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder="Ask about LHDN rules, tax categories..."
+                        placeholder={mode === 'Offline' ? "Search offline LHDN database..." : "Ask about LHDN rules, tax categories..."}
                         className="w-full !rounded-2xl !py-4 !px-8 text-base !bg-white !shadow-none border border-gray-200/60 focus:!border-blue-400 focus:!ring-4 focus:!ring-blue-50 transition-all placeholder:text-gray-400"
                     />
                 </div>
-                <NeuroButton 
-                    onClick={handleSend} 
+                <TunaiButton 
+                    onClick={() => handleSend()} 
                     disabled={isTyping || !input.trim()} 
                     className={`!p-0 w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-300 ${
                         !input.trim() 
@@ -164,9 +285,9 @@ Instruction:
                     }`}
                 >
                     <Send size={24} className={isTyping ? "text-gray-400" : "text-blue-600"} />
-                </NeuroButton>
+                </TunaiButton>
             </div>
-        </NeuroCard>
+        </TunaiCard>
     </div>
   );
 };

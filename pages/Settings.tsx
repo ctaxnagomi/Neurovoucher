@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge } from '../components/NeuroComponents';
+﻿import React, { useState, useEffect } from 'react';
+import { TunaiCard, TunaiInput, TunaiButton, TunaiBadge } from '../components/TunaiComponents';
 import { getApiKey, setStoredApiKey, validateConnection } from '../services/geminiService';
 import { Save, CheckCircle2, XCircle, Key, Activity, ScanLine, Image as ImageIcon, ShieldCheck, HelpCircle, MessageCircle, Github, HeartHandshake, Clock } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export const Settings: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [showKey, setShowKey] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const key = getApiKey();
@@ -45,9 +47,9 @@ export const Settings: React.FC = () => {
             {loading ? (
                 <span className="text-xs text-gray-400 animate-pulse">Checking...</span>
             ) : isConnected ? (
-                <NeuroBadge color="text-green-600 bg-green-100/50">Active</NeuroBadge>
+                <TunaiBadge color="text-green-600 bg-green-100/50">{t('active')}</TunaiBadge>
             ) : (
-                <NeuroBadge color="text-red-500 bg-red-100/50">Inactive</NeuroBadge>
+                <TunaiBadge color="text-red-500 bg-red-100/50">{t('inactive')}</TunaiBadge>
             )}
         </div>
     </div>
@@ -57,7 +59,7 @@ export const Settings: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
         <div className="flex justify-between items-start">
             <div>
-                <h2 className="text-2xl font-bold text-gray-700">Settings</h2>
+                <h2 className="text-2xl font-bold text-gray-700">{t('settings')}</h2>
                 <p className="text-sm text-gray-500">Configure your API keys and service integrations.</p>
             </div>
             
@@ -76,17 +78,17 @@ export const Settings: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-8">
                 {/* API Key Configuration */}
-                <NeuroCard title="General API Configuration">
+                <TunaiCard title={t('generalApiConfig')}>
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm text-gray-500 mb-2 flex items-center gap-2">
-                                <Key size={14} /> Google Gemini API Key
+                                <Key size={14} /> {t('apiKeyLabel')}
                             </label>
                             <p className="text-xs text-gray-400 mb-3">
-                                This master key enables all AI features including OCR, Live Agent, and Image Editing.
+                                {t('apiKeyDesc')}
                             </p>
                             <div className="relative">
-                                <NeuroInput 
+                                <TunaiInput 
                                     type={showKey ? "text" : "password"} 
                                     value={apiKey}
                                     onChange={(e) => setApiKey(e.target.value)}
@@ -103,7 +105,7 @@ export const Settings: React.FC = () => {
                         </div>
 
                         <div className="pt-2">
-                            <NeuroButton 
+                            <TunaiButton 
                                 onClick={handleSave} 
                                 disabled={loading}
                                 className="w-full flex items-center justify-center gap-2 text-blue-600"
@@ -113,8 +115,8 @@ export const Settings: React.FC = () => {
                                 ) : (
                                     <Save size={18} />
                                 )}
-                                {loading ? 'Validating Connection...' : 'Save & Connect'}
-                            </NeuroButton>
+                                {loading ? 'Validating Connection...' : t('saveConnect')}
+                            </TunaiButton>
                         </div>
 
                         {isConnected !== null && (
@@ -124,10 +126,10 @@ export const Settings: React.FC = () => {
                             </div>
                         )}
                     </div>
-                </NeuroCard>
+                </TunaiCard>
 
                 {/* Privacy Info */}
-                <NeuroCard>
+                <TunaiCard>
                     <div className="flex items-start gap-3">
                         <ShieldCheck className="text-purple-500 mt-1" size={24} />
                         <div>
@@ -138,10 +140,10 @@ export const Settings: React.FC = () => {
                             </p>
                         </div>
                     </div>
-                </NeuroCard>
+                </TunaiCard>
                 
                 {/* Github / Join Project Section */}
-                <NeuroCard>
+                <TunaiCard>
                      <div className="text-center space-y-3 relative">
                         <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center text-white mx-auto shadow-lg relative group">
                             <Github size={32} />
@@ -161,37 +163,37 @@ export const Settings: React.FC = () => {
                             <Github size={14} /> Add Github cdnk icon
                         </button>
                      </div>
-                </NeuroCard>
+                </TunaiCard>
             </div>
 
             {/* Service Status Dashboard */}
             <div className="space-y-6">
                  <div>
-                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider px-2 mb-4">Service Status</h3>
+                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider px-2 mb-4">{t('serviceStatus')}</h3>
                     
                     <div className="space-y-4">
                         <ServiceStatus 
-                            label="OCR Engine" 
+                            label={t('ocrEngine')} 
                             icon={ScanLine} 
-                            description="Gemini Flash 2.5 • For Receipt Scanning"
+                            description="Gemini Flash 2.5 â€¢ For Receipt Scanning"
                         />
                         
                         <ServiceStatus 
-                            label="Live Agent" 
+                            label={t('liveAgent')} 
                             icon={Activity} 
-                            description="Gemini 2.5 Live • Real-time Voice"
+                            description="Gemini 2.5 Live â€¢ Real-time Voice"
                         />
                         
                         <ServiceStatus 
                             label="Nano Banana" 
                             icon={ImageIcon} 
-                            description="Gemini Flash Image • Image Cleanup & Editing"
+                            description="Gemini Flash Image â€¢ Image Cleanup & Editing"
                         />
 
                         <ServiceStatus 
-                            label="Advisor Chat" 
+                            label={t('advisorChat')} 
                             icon={ShieldCheck} 
-                            description="Gemini 3.0 Pro • Financial Reasoning"
+                            description="Gemini 3.0 Pro â€¢ Financial Reasoning"
                             fallback="Alternative: Gemini 3.0 Pro is not available"
                         />
                     </div>

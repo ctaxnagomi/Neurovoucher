@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useRef, ReactNode, useEffect } from 'react';
+﻿import React, { createContext, useContext, useState, useRef, ReactNode, useEffect } from 'react';
 import { getLiveClient } from '../services/geminiService';
 import { createPcmBlob, decodeAudioData } from '../services/audioUtils';
 import { LiveServerMessage, Modality, Type, FunctionDeclaration } from '@google/genai';
+import { useLanguage } from './LanguageContext';
+import { SUPPORTED_LANGUAGES } from '../types';
 
 // Declare html2canvas globally (loaded via script tag in index.html)
 declare const html2canvas: any;
@@ -113,6 +115,8 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   
+  const { language } = useLanguage();
+  
   // Refs to maintain session across re-renders
   const audioContextRef = useRef<AudioContext | null>(null);
   const outputContextRef = useRef<AudioContext | null>(null);
@@ -177,13 +181,22 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
       outputContextRef.current = outputCtx;
       nextStartTimeRef.current = outputCtx.currentTime;
 
+      // Determine language for instructions
+      const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === language)?.label || 'English';
+
       // Initialize Session
       const sessionPromise = client.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
             responseModalities: [Modality.AUDIO],
             tools: [{ functionDeclarations: [fillVoucherTool, addItemTool, downloadTool, fillLHDNTool, navigationTool] }],
-            systemInstruction: `You are NeuroVoucher's Compliance Officer & Live Agent.
+            systemInstruction: `You are TunaiCukaiMY's Compliance Officer & Live Agent.
+            
+            IMPORTANT: Speak in ${langLabel} for conversation.
+            
+            CRITICAL COMPLIANCE RULE: 
+            For any tool calls (fill_voucher_form, fill_lhdn_letter), the string arguments MUST be in **English** or **Bahasa Melayu**. 
+            If the user speaks another language (e.g. Cantonese) or the screen text is in another language, TRANSLATE it to English/Malay before calling the tool. This is a strict LHDN tax requirement.
             
             GOAL: Help the user complete vouchers and forms accurately.
             
@@ -196,10 +209,9 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
             BEHAVIOR:
             - **Be Proactive**: If you see missing fields, ask for them.
             - **Spatial Awareness**: You can refer to elements by their location (e.g., "The box on the right").
-            - **One Session**: You are the sole active agent.
             - **Context Persistence**: Remember that the user might switch tabs. Follow them visually.
             
-            Keep responses helpful, concise, and professional.`,
+            Keep responses helpful, concise, and professional in ${langLabel}.`,
             speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
             }
@@ -253,24 +265,24 @@ export const LiveAgentProvider: React.FC<{ children: ReactNode }> = ({ children 
                         
                         if (fc.name === 'fill_voucher_form') {
                             const fields = Object.keys(fc.args as object);
-                            window.dispatchEvent(new CustomEvent('neuro-ai-highlight', { detail: { fields } }));
-                            window.dispatchEvent(new CustomEvent('neuro-fill-voucher', { detail: fc.args }));
+                            window.dispatchEvent(new CustomEvent('tunai-ai-highlight', { detail: { fields } }));
+                            window.dispatchEvent(new CustomEvent('tunai-fill-voucher', { detail: fc.args }));
                         }
                         else if (fc.name === 'add_voucher_item') {
-                            window.dispatchEvent(new CustomEvent('neuro-add-item', { detail: fc.args }));
+                            window.dispatchEvent(new CustomEvent('tunai-add-item', { detail: fc.args }));
                         }
                         else if (fc.name === 'download_voucher_pdf') {
-                            window.dispatchEvent(new CustomEvent('neuro-download-pdf', { detail: {} }));
+                            window.dispatchEvent(new CustomEvent('tunai-download-pdf', { detail: {} }));
                         }
                         else if (fc.name === 'fill_lhdn_letter') {
                             const fields = Object.keys(fc.args as object);
-                            window.dispatchEvent(new CustomEvent('neuro-ai-highlight', { detail: { fields } }));
-                            window.dispatchEvent(new CustomEvent('neuro-fill-lhdn', { detail: fc.args }));
+                            window.dispatchEvent(new CustomEvent('tunai-ai-highlight', { detail: { fields } }));
+                            window.dispatchEvent(new CustomEvent('tunai-fill-lhdn', { detail: fc.args }));
                         }
                         else if (fc.name === 'navigate_app') {
                             const args = fc.args as any;
                             if (args.path) {
-                                window.dispatchEvent(new CustomEvent('neuro-navigate', { detail: args.path }));
+                                window.dispatchEvent(new CustomEvent('tunai-navigate', { detail: args.path }));
                             }
                         }
 

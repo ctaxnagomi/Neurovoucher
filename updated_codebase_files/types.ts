@@ -1,3 +1,4 @@
+
 export interface VoucherItem {
   id: string;
   description: string;
@@ -16,7 +17,7 @@ export interface Voucher {
 
 export enum GeminiModel {
   CHAT_PRO = 'gemini-3-pro-preview',
-  FAST_LITE = 'gemini-2.5-flash',
+  FAST_LITE = 'gemini-2.5-flash-lite',
   TTS = 'gemini-2.5-flash-preview-tts',
   LIVE = 'gemini-2.5-flash-native-audio-preview-09-2025',
   IMAGE_EDIT = 'gemini-2.5-flash-image',
@@ -26,12 +27,21 @@ export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
   timestamp: number;
+  grounding?: {
+    web?: {
+      uri: string;
+      title: string;
+    }
+  }[];
 }
 
 export const SUPPORTED_LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'ms', label: 'Malay (Bahasa Melayu)' },
-  { code: 'id', label: 'Indonesia (Bahasa Indonesia)' },
-  { code: 'fil', label: 'Philippines (Tagalog)' },
-  { code: 'zh', label: 'Chinese (中文)' },
+  { code: 'en', label: 'English', flag: '🇺🇸' },
+  { code: 'ms', label: 'Bahasa Melayu', flag: '🇲🇾' },
+  { code: 'zh', label: 'Mandarin (中文)', flag: '🇨🇳' },
+  { code: 'yue', label: 'Cantonese (廣東話)', flag: '🇭🇰' },
+  { code: 'ja', label: 'Japanese (日本語)', flag: '🇯🇵' },
+  { code: 'id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
+  { code: 'ru', label: 'Russian (Русский)', flag: '🇷🇺' },
+  { code: 'de', label: 'German (Deutsch)', flag: '🇩🇪' },
 ];

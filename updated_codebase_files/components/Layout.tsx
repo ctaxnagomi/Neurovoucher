@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { NeuroButton, NeuroCard } from './NeuroComponents';
-import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2, ClipboardList, Settings, ScrollText, Radio, Monitor, MicOff, Maximize2, Cpu, Eye } from 'lucide-react';
+import { NeuroButton, NeuroCard, NeuroSelect } from './NeuroComponents';
+import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2, ClipboardList, Settings, ScrollText, Radio, Monitor, MicOff, Maximize2, Cpu, Eye, Globe } from 'lucide-react';
 import { useLiveAgent } from '../contexts/LiveAgentContext';
+import { useLanguage } from '../contexts/LanguageContext';
+import { SUPPORTED_LANGUAGES } from '../types';
 
 const SidebarItem = ({ to, icon: Icon, label, extra, connected }: { to: string; icon: any; label: string, extra?: React.ReactNode, connected?: boolean }) => (
   <NavLink to={to} className={({ isActive }) => `block mb-4 no-underline`}>
@@ -157,15 +159,16 @@ const FloatingAgentWidget = () => {
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { connected } = useLiveAgent();
+  const { language, setLanguage, t } = useLanguage();
 
   return (
     <div className="min-h-screen bg-[#e0e5ec] p-4 md:p-8 flex flex-col md:flex-row gap-8">
       {/* Sidebar */}
       <aside className="w-full md:w-64 flex-shrink-0">
         <NeuroCard className="h-full sticky top-8 flex flex-col z-20">
-          <div className="mb-8 text-center relative">
-             <h1 className="text-2xl font-bold text-gray-700 tracking-tighter">NEURO<span className="text-blue-500">VOUCHER</span></h1>
-             <p className="text-xs text-gray-400 mt-1">AI-Powered Finance</p>
+          <div className="mb-4 text-center relative">
+             <h1 className="text-2xl font-bold text-gray-700 tracking-tighter">{t('appTitle1')}<span className="text-blue-500"> {t('appTitle2')}</span><span className="text-gray-400 font-light"> MY</span></h1>
+             <p className="text-xs text-gray-400 mt-1">Smart Tax & Voucher System</p>
              
              {/* Global Active Indicator if Connected */}
              {connected && (
@@ -178,18 +181,43 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
              )}
           </div>
           
+          {/* Language Switcher */}
+          <div className="mb-6 px-1">
+             <div className="relative">
+                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                     <Globe size={14} />
+                 </div>
+                 <select 
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value as any)}
+                    className="w-full appearance-none bg-gray-200/50 border-none rounded-lg py-2 pl-9 pr-8 text-xs font-bold text-gray-600 cursor-pointer outline-none focus:ring-2 focus:ring-blue-200"
+                 >
+                     {SUPPORTED_LANGUAGES.map(lang => (
+                         <option key={lang.code} value={lang.code}>
+                             {lang.flag} {lang.label}
+                         </option>
+                     ))}
+                 </select>
+                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                     <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                         <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                     </svg>
+                 </div>
+             </div>
+          </div>
+          
           <nav className="flex-1">
-            <SidebarItem to="/" icon={BarChart2} label="Dashboard" connected={connected} />
-            <SidebarItem to="/voucher" icon={FileText} label="Generator" connected={connected} />
-            <SidebarItem to="/vouchers" icon={ClipboardList} label="History" connected={connected} />
-            <SidebarItem to="/lhdn-letter" icon={ScrollText} label="LHDN Letter" connected={connected} />
-            <SidebarItem to="/chat" icon={MessageSquare} label="AI Advisor" connected={connected} />
+            <SidebarItem to="/" icon={BarChart2} label={t('dashboard')} connected={connected} />
+            <SidebarItem to="/voucher" icon={FileText} label={t('generator')} connected={connected} />
+            <SidebarItem to="/vouchers" icon={ClipboardList} label={t('history')} connected={connected} />
+            <SidebarItem to="/lhdn-letter" icon={ScrollText} label={t('lhdnLetter')} connected={connected} />
+            <SidebarItem to="/chat" icon={MessageSquare} label={t('aiAdvisor')} connected={connected} />
             
             {/* Live Agent Item with requested Visual Indicator */}
             <SidebarItem 
                 to="/live" 
                 icon={Mic} 
-                label="Live Agent" 
+                label={t('liveAgent')} 
                 connected={connected}
                 extra={
                     <div className="ml-auto flex items-center gap-2">
@@ -199,13 +227,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 }
             />
             
-            <SidebarItem to="/editor" icon={ImageIcon} label="Receipt Editor" connected={connected} />
+            <SidebarItem to="/editor" icon={ImageIcon} label={t('receiptEditor')} connected={connected} />
           </nav>
 
           <div className="mt-auto pt-4 border-t border-gray-300/20 space-y-4">
-            <SidebarItem to="/settings" icon={Settings} label="Settings" connected={connected} />
+            <SidebarItem to="/settings" icon={Settings} label={t('settings')} connected={connected} />
             <div className="text-xs text-center text-gray-500 font-mono opacity-60">
-                V.0.1.28 DeckerGUI Ecosystem
+                V.2.0.0 Tunai Cukai MY
             </div>
           </div>
         </NeuroCard>

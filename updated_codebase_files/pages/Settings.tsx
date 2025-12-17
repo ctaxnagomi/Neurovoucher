@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroBadge } from '../components/NeuroComponents';
 import { getApiKey, setStoredApiKey, validateConnection } from '../services/geminiService';
 import { Save, CheckCircle2, XCircle, Key, Activity, ScanLine, Image as ImageIcon, ShieldCheck, HelpCircle, MessageCircle, Github, HeartHandshake, Clock } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export const Settings: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [showKey, setShowKey] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const key = getApiKey();
@@ -45,9 +47,9 @@ export const Settings: React.FC = () => {
             {loading ? (
                 <span className="text-xs text-gray-400 animate-pulse">Checking...</span>
             ) : isConnected ? (
-                <NeuroBadge color="text-green-600 bg-green-100/50">Active</NeuroBadge>
+                <NeuroBadge color="text-green-600 bg-green-100/50">{t('active')}</NeuroBadge>
             ) : (
-                <NeuroBadge color="text-red-500 bg-red-100/50">Inactive</NeuroBadge>
+                <NeuroBadge color="text-red-500 bg-red-100/50">{t('inactive')}</NeuroBadge>
             )}
         </div>
     </div>
@@ -57,7 +59,7 @@ export const Settings: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
         <div className="flex justify-between items-start">
             <div>
-                <h2 className="text-2xl font-bold text-gray-700">Settings</h2>
+                <h2 className="text-2xl font-bold text-gray-700">{t('settings')}</h2>
                 <p className="text-sm text-gray-500">Configure your API keys and service integrations.</p>
             </div>
             
@@ -76,14 +78,14 @@ export const Settings: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-8">
                 {/* API Key Configuration */}
-                <NeuroCard title="General API Configuration">
+                <NeuroCard title={t('generalApiConfig')}>
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm text-gray-500 mb-2 flex items-center gap-2">
-                                <Key size={14} /> Google Gemini API Key
+                                <Key size={14} /> {t('apiKeyLabel')}
                             </label>
                             <p className="text-xs text-gray-400 mb-3">
-                                This master key enables all AI features including OCR, Live Agent, and Image Editing.
+                                {t('apiKeyDesc')}
                             </p>
                             <div className="relative">
                                 <NeuroInput 
@@ -113,7 +115,7 @@ export const Settings: React.FC = () => {
                                 ) : (
                                     <Save size={18} />
                                 )}
-                                {loading ? 'Validating Connection...' : 'Save & Connect'}
+                                {loading ? 'Validating Connection...' : t('saveConnect')}
                             </NeuroButton>
                         </div>
 
@@ -167,17 +169,17 @@ export const Settings: React.FC = () => {
             {/* Service Status Dashboard */}
             <div className="space-y-6">
                  <div>
-                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider px-2 mb-4">Service Status</h3>
+                    <h3 className="text-lg font-bold text-gray-600 uppercase tracking-wider px-2 mb-4">{t('serviceStatus')}</h3>
                     
                     <div className="space-y-4">
                         <ServiceStatus 
-                            label="OCR Engine" 
+                            label={t('ocrEngine')} 
                             icon={ScanLine} 
                             description="Gemini Flash 2.5 • For Receipt Scanning"
                         />
                         
                         <ServiceStatus 
-                            label="Live Agent" 
+                            label={t('liveAgent')} 
                             icon={Activity} 
                             description="Gemini 2.5 Live • Real-time Voice"
                         />
@@ -189,7 +191,7 @@ export const Settings: React.FC = () => {
                         />
 
                         <ServiceStatus 
-                            label="Advisor Chat" 
+                            label={t('advisorChat')} 
                             icon={ShieldCheck} 
                             description="Gemini 3.0 Pro • Financial Reasoning"
                             fallback="Alternative: Gemini 3.0 Pro is not available"

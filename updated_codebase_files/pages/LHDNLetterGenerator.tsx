@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { NeuroCard, NeuroInput, NeuroButton, NeuroTextarea, NeuroBadge, NeuroSelect } from '../components/NeuroComponents';
 import { generateFastSummary, extractLetterhead } from '../services/geminiService';
-import { Download, Copy, Sparkles, FileCheck, HelpCircle, ScrollText, Info, AlertTriangle, XCircle, ScanLine, Loader2 } from 'lucide-react';
+import { Download, Copy, Sparkles, FileCheck, HelpCircle, ScrollText, Info, AlertTriangle, XCircle, ScanLine, Loader2, RefreshCw, Edit3 } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { useLiveAgent } from '../contexts/LiveAgentContext';
 
@@ -43,6 +43,10 @@ export const LHDNLetterGenerator: React.FC = () => {
     const [isPolishing, setIsPolishing] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [paperSize, setPaperSize] = useState<'a4' | 'letter'>('a4');
+    
+    // Smart Compose State
+    const [showComposeModal, setShowComposeModal] = useState(false);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { connected } = useLiveAgent();
@@ -97,13 +101,30 @@ export const LHDNLetterGenerator: React.FC = () => {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const handlePolishReason = async () => {
-        if (!reason) return;
+    const handleComposeClick = () => {
+        if (reason && reason.length > 20) {
+            setShowComposeModal(true);
+        } else {
+            executeSmartCompose('NEW');
+        }
+    };
+
+    const executeSmartCompose = async (mode: 'NEW' | 'REFINE') => {
+        setShowComposeModal(false);
         setIsPolishing(true);
+
         try {
-            const prompt = `Rewrite this reason for missing receipts in a formal, professional tone suitable for a letter to LHDN Malaysia. Keep it concise but explanatory. Reason: "${reason}"`;
-            const refined = await generateFastSummary(prompt);
-            setReason(refined.replace(/^"|"$/g, '')); // Remove quotes if added
+            let prompt = "";
+            if (mode === 'NEW') {
+                 // Generate a generic but professional template
+                 prompt = "Write a standard, professional 1-paragraph explanation for missing receipts due to 'inadvertent administrative error' suitable for LHDN Malaysia. Output MUST be in English. Keep it concise.";
+            } else {
+                 // Refine existing
+                 prompt = `Rewrite this reason for missing receipts in a formal, professional tone suitable for a letter to LHDN Malaysia. Output MUST be in **English**. Keep it concise but explanatory. Reason: "${reason}"`;
+            }
+
+            const result = await generateFastSummary(prompt);
+            setReason(result.replace(/^"|"$/g, ''));
         } catch (e) {
             console.error(e);
         } finally {
@@ -394,11 +415,11 @@ ${companyName}`;
                             <label className="block text-xs font-bold text-gray-500 uppercase flex justify-between items-center">
                                 Reason for Loss
                                 <NeuroButton 
-                                    onClick={handlePolishReason} 
+                                    onClick={handleComposeClick} 
                                     disabled={isPolishing} 
                                     className="!py-1 !px-2 !text-[10px] flex items-center gap-1 text-purple-600"
                                 >
-                                    <Sparkles size={10} /> {isPolishing ? 'Refining...' : 'AI Polish'}
+                                    <Sparkles size={10} /> {isPolishing ? 'Refining...' : 'AI Compose'}
                                 </NeuroButton>
                             </label>
                             <NeuroTextarea 
@@ -634,6 +655,58 @@ ${companyName}`;
                      </div>
                 </NeuroCard>
             </div>
+
+            {/* Smart Compose Modal */}
+            {showComposeModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                    <div className="absolute inset-0" onClick={() => setShowComposeModal(false)}></div>
+                    <NeuroCard className="w-full max-w-md relative z-10 shadow-2xl border-2 border-purple-100 bg-[#e0e5ec]">
+                        <div className="text-center mb-6">
+                            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-4 text-purple-600">
+                                <Sparkles size={24} />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-700">Document Content Detected</h3>
+                            <p className="text-sm text-gray-500 mt-2 px-4">
+                                You already have a drafted explanation. How would you like to proceed with the AI generation?
+                            </p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <button 
+                                onClick={() => executeSmartCompose('REFINE')}
+                                className="w-full p-4 rounded-xl bg-white border border-purple-100 hover:border-purple-300 hover:shadow-md transition-all flex items-center gap-4 group"
+                            >
+                                <div className="bg-purple-50 p-2 rounded-lg text-purple-600 group-hover:bg-purple-100 transition-colors">
+                                    <Edit3 size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-bold text-gray-700 text-sm">Refine / Adjust</div>
+                                    <div className="text-xs text-gray-500">Polish the existing text to be more formal.</div>
+                                </div>
+                            </button>
+
+                            <button 
+                                onClick={() => executeSmartCompose('NEW')}
+                                className="w-full p-4 rounded-xl bg-white border border-blue-100 hover:border-blue-300 hover:shadow-md transition-all flex items-center gap-4 group"
+                            >
+                                <div className="bg-blue-50 p-2 rounded-lg text-blue-600 group-hover:bg-blue-100 transition-colors">
+                                    <RefreshCw size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-bold text-gray-700 text-sm">Generate New</div>
+                                    <div className="text-xs text-gray-500">Reset body to standard template (Keeps Letterhead).</div>
+                                </div>
+                            </button>
+                        </div>
+                        
+                        <div className="mt-6 text-center">
+                            <button onClick={() => setShowComposeModal(false)} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                                Cancel
+                            </button>
+                        </div>
+                    </NeuroCard>
+                </div>
+            )}
         </div>
     );
 };

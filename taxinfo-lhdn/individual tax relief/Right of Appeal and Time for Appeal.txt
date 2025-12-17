@@ -1,0 +1,25 @@
+Right of Appeal and Time for Appeal
+
+Section 99 of the Income Tax Act 1967 (ITA) provides that a person who is aggrieved by an assessment which has been made on him for any year of assessment by the Director General of Inland Revenue (DGIR) is entitled to appeal against that assessment.
+
+The right of appeal under section 99 of the ITA shall not apply for the following cases:
+deemed assessment under subsection 90(1) of the ITA; OR
+deemed assessment for amended Income Tax Return Form under section 91A of the ITA.
+
+However, under subsection 99(4) of the ITA, if the taxpayer disagrees with the treatment stated in Public Ruling or known stand, rules and practices of the DGIR prevailing at the time when the assessment was made, the taxpayer is entitled to make an appeal. Examples of known stand, rules and practices are as follows:
+private rulings or advanced rulings;
+guidelines of the Inland Revenue Board of Malaysia (IRBM);
+decision of cases at the Special Commissioners of Income Tax (SCIT) level and the courts; OR
+any other written evidence.
+
+Therefore, section 99 of the ITA shall only apply for:
+an appeal against a notice of assessment made for any year of assessment for cases as stated below:
+assessment / additional assessment / advance assessment which are made by the DGIR as a result of desk audit or field audit findings;
+best judgement assessment under subsection 90(3) of the ITA made without ITRF or late submission of ITRF out of the prescribed time or best judgment assessment under subsection 91(1) of the ITA; or
+an appeal under subsection 99(4) of the ITA where a taxpayer disagrees with a Public Ruling or any known stand, rules or practice of the DGIR generally prevailing at the time when the assessment was made.
+an appeal against a Notification of Non-Chargeability (NONC) which is made by the DGIR under section 97A of the ITA as a result of audit or investigation findings.
+
+An appeal must be made by submitting a Form Q not later than thirty (30) days after the notice of assessment has been served as provided under subsection 99(1) of the ITA.
+
+Effective from the year of assessment 2019, if an estimated assessment is raised under subsection 90(3) of the ITA on a company, limited liability partnership, trust body or co-operative society due to failure to submit an Income Tax Return Form (ITRF), an appeal by way of a Form Q against that assessment must be submitted together with the relevant Income Tax Return Form (ITRF).
+For further clarification and information regarding an appeal against an assessment or application for relief, kindly refer to Public Ruling No. 7/2020 (Appeal Against an Assessment and Application for Relief).

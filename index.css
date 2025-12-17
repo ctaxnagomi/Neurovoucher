@@ -1,0 +1,96 @@
+/* Global Styles */
+body {
+  margin: 0;
+  overflow: hidden; /* Prevent scroll */
+  background-color: #f8fafc; /* Slate-50 equivalent */
+  color: #0f172a; /* Slate-900 equivalent */
+}
+
+/* Animations */
+@keyframes revealLetter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+    filter: blur(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes typewriter {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes blink {
+  50% {
+    border-color: transparent;
+  }
+}
+
+/* Helper Classes for Animations */
+.animate-reveal-letter {
+  opacity: 1 !important; /* Override initial if needed */
+  animation: revealLetter 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-typewriter-line {
+  animation: typewriter 1s cubic-bezier(0.22, 1, 0.36, 1) forwards 1.5s;
+}
+
+.animate-typewriter-text {
+  white-space: nowrap;
+  width: 0;
+  animation: typewriter 2s steps(30) forwards 2s, blink 1s infinite;
+}
+
+/* Dynamic Style Helpers */
+.progress-bar-fill {
+  width: var(--progress-width, 0%);
+}
+
+.ai-focus-box {
+  top: var(--box-top);
+  left: var(--box-left);
+  width: var(--box-width);
+  height: var(--box-height);
+}
+/* Intro Animations */
+@keyframes wipeIn {
+  0% {
+    clip-path: polygon(0 0, 0 0, 0 100%, 0 100%);
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes wipeOut {
+  0% {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    opacity: 1;
+  }
+  100% {
+    clip-path: polygon(100% 0, 100% 0, 100% 100%, 100% 100%);
+    opacity: 0;
+  }
+}
+
+.animate-wipe-in {
+  animation: wipeIn 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-wipe-out {
+  animation: wipeOut 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}

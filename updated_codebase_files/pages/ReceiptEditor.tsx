@@ -3,6 +3,7 @@ import { NeuroCard, NeuroButton, NeuroInput, NeuroSelect } from '../components/N
 import { editImage } from '../services/geminiService';
 import { Upload, Wand2, Download, Image as ImageIcon, Languages, Zap, Activity } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export const ReceiptEditor: React.FC = () => {
   const [image, setImage] = useState<string | null>(null);
@@ -11,6 +12,7 @@ export const ReceiptEditor: React.FC = () => {
   const [targetLanguage, setTargetLanguage] = useState('en');
   const [enableTranslation, setEnableTranslation] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useLanguage();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,7 +56,7 @@ export const ReceiptEditor: React.FC = () => {
     <div className="space-y-6">
         <div className="flex justify-between items-center">
              <div className="flex items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-700">Receipt Editor</h2>
+                <h2 className="text-2xl font-bold text-gray-700">{t('receiptEditor')}</h2>
                 <div className="flex items-center gap-1.5 px-3 py-1 bg-green-100/50 border border-green-200 rounded-full">
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                     <span className="text-[10px] font-bold text-green-700 uppercase tracking-wide">System Online</span>
@@ -70,7 +72,7 @@ export const ReceiptEditor: React.FC = () => {
                     ) : (
                         <div className="text-center text-gray-400">
                             <ImageIcon size={64} className="mx-auto mb-4 opacity-50" />
-                            <p>Upload a receipt image to start editing</p>
+                            <p>{t('uploadImage')}</p>
                         </div>
                     )}
                     
@@ -95,7 +97,7 @@ export const ReceiptEditor: React.FC = () => {
                         accept="image/*"
                     />
                     <NeuroButton onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2">
-                        <Upload size={18} /> Select Image
+                        <Upload size={18} /> {t('uploadImage')}
                     </NeuroButton>
                 </NeuroCard>
 
@@ -106,7 +108,7 @@ export const ReceiptEditor: React.FC = () => {
                     
                     <div className="space-y-4">
                         <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Editor Prompt</label>
+                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('editorPrompt')}</label>
                              <NeuroInput 
                                 placeholder="e.g., 'Remove the coffee stain'"
                                 value={prompt}
@@ -123,14 +125,14 @@ export const ReceiptEditor: React.FC = () => {
                                         onChange={(e) => setEnableTranslation(e.target.checked)}
                                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
                                     />
-                                    <span className="font-medium">Enable Translation</span>
+                                    <span className="font-medium">{t('enableTranslation')}</span>
                                 </label>
                                 <Languages size={16} className="text-blue-500" />
                             </div>
                             
                             {enableTranslation && (
                                 <div className="mt-2 animate-in slide-in-from-top-2 duration-200">
-                                    <label className="block text-xs text-gray-500 mb-1">Target Language</label>
+                                    <label className="block text-xs text-gray-500 mb-1">{t('targetLanguage')}</label>
                                     <NeuroSelect 
                                         value={targetLanguage} 
                                         onChange={(e) => setTargetLanguage(e.target.value)}
@@ -150,7 +152,7 @@ export const ReceiptEditor: React.FC = () => {
                             className="w-full flex items-center justify-center gap-2 text-purple-600 relative group overflow-hidden"
                         >
                             <span className="relative z-10 flex items-center gap-2">
-                                <Wand2 size={18} /> {enableTranslation ? 'Generate & Translate' : 'Generate Edit'}
+                                <Wand2 size={18} /> {enableTranslation ? t('generateTranslate') : t('generateEdit')}
                             </span>
                              <div className="absolute inset-0 bg-purple-100 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                         </NeuroButton>
@@ -166,7 +168,7 @@ export const ReceiptEditor: React.FC = () => {
                  {image && (
                     <NeuroCard>
                         <NeuroButton className="w-full flex items-center justify-center gap-2 text-green-600">
-                            <Download size={18} /> Download Result
+                            <Download size={18} /> {t('downloadResult')}
                         </NeuroButton>
                     </NeuroCard>
                  )}

@@ -1,0 +1,12 @@
+Self Assessment System (SAS) is based on the concept of Pay, Self Assess and File.
+
+Self assessment means that taxpayer is required by law to determine his taxable income, compute chargeable income tax, submit the income tax return form and make tax payment for the year of assessment concerned.
+Notice of assessment wil not be issued under SAS as the ITRF submission itself is the final assessment notice.
+
+Below are type of forms used to declare income
+
+BE Form: Resident individual with employment income and does not carry on business.
+B Form: Resident individual who carry on business with employment and other income.
+M Form: Non-resident individual who carry on business, with employment income or others
+
+The residency status of individuals is subject to Section 7, Income Tax Act 1967.
