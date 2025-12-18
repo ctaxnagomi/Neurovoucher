@@ -2,12 +2,13 @@
 // Credit : Wan Mohd Azizi (Rikayu Wilzam)
 
 import React, { useEffect, useState } from 'react';
+import logo from '../assets/tunaicukaimy-logo/tunaicukaimylogo-2trans.png';
 
 interface IntroProps {
   onComplete: () => void;
 }
 
-export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
+export const Intro = ({ onComplete }: IntroProps) => {
   const [slide, setSlide] = useState(0);
 
   useEffect(() => {
@@ -72,7 +73,7 @@ export const Intro: React.FC<IntroProps> = ({ onComplete }) => {
       {/* Slide 3: Final Branding */}
       {slide === 3 && (
         <div className="animate-wipe-in flex flex-col items-center">
-            <img src="/tunaicukaimy-logo.png" alt="TunaiCukai Logo" className="w-32 h-32 md:w-48 md:h-48 object-contain mb-6 drop-shadow-2xl" />
+            <img src={logo} alt="TunaiCukai Logo" className="w-32 h-32 md:w-48 md:h-48 object-contain mb-6 drop-shadow-2xl" />
             <h1 className="text-6xl md:text-8xl font-black tracking-tighter mb-4 text-white drop-shadow-xl">
                 TunaiCukai<span className="text-blue-500">MY</span>
             </h1>

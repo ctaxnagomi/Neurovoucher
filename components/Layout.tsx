@@ -8,10 +8,11 @@ import { Mic, FileText, MessageSquare, Image as ImageIcon, BarChart2, ClipboardL
 import { useLiveAgent } from '../contexts/LiveAgentContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { SUPPORTED_LANGUAGES } from '../types';
+import logo from '../assets/tunaicukaimy-logo/tunaicukaimylogo-2trans.png';
 
-const SidebarItem = ({ to, icon: Icon, label, extra, connected }: { to: string; icon: any; label: string, extra?: React.ReactNode, connected?: boolean }) => (
-  <NavLink to={to} className={({ isActive }) => `block mb-4 no-underline`}>
-    {({ isActive }) => (
+const SidebarItem = ({ to, icon: Icon, label, extra, connected }: { to: string; icon: React.ElementType; label: string, extra?: React.ReactNode, connected?: boolean }) => (
+  <NavLink to={to} className={({ isActive }: { isActive: boolean }) => `block mb-4 no-underline`}>
+    {({ isActive }: { isActive: boolean }) => (
       <TunaiButton active={isActive} className="w-full flex items-center gap-3 justify-start relative group overflow-hidden transition-all duration-300">
         <div className="relative">
             <Icon size={20} className={isActive ? 'text-blue-600' : 'text-gray-500'} />
@@ -43,8 +44,8 @@ const AIFocusOverlay = () => {
     const [targets, setTargets] = useState<{rect: DOMRect, label: string}[]>([]);
 
     useEffect(() => {
-        const handleHighlight = (e: CustomEvent) => {
-            const fields = e.detail.fields as string[];
+        const handleHighlight = (e: any) => {
+            const fields = (e as CustomEvent).detail.fields as string[];
             const newTargets: {rect: DOMRect, label: string}[] = [];
 
             fields.forEach(field => {
@@ -74,7 +75,7 @@ const AIFocusOverlay = () => {
 
     return (
         <div className="fixed inset-0 pointer-events-none z-[9999] ai-focus-overlay">
-            {targets.map((t, i) => (
+            {targets.map((t: {rect: DOMRect, label: string}, i: number) => (
                 <div 
                     key={i}
                     style={{
@@ -102,8 +103,8 @@ const FloatingAgentWidget = () => {
 
     // Handle AI Navigation Requests
     useEffect(() => {
-        const handleNavigate = (e: CustomEvent) => {
-            const path = e.detail;
+        const handleNavigate = (e: any) => {
+            const path = (e as CustomEvent).detail;
             if (path && path.startsWith('/')) {
                 navigate(path);
             }
@@ -161,7 +162,7 @@ const FloatingAgentWidget = () => {
     );
 };
 
-export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const Layout = ({ children }: { children: React.ReactNode }) => {
   const { connected } = useLiveAgent();
   const { language, setLanguage, t } = useLanguage();
 
@@ -173,8 +174,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           {/* Header */}
           <div className="mb-4 md:mb-6 flex flex-row md:flex-col items-center justify-between md:justify-center relative flex-shrink-0 px-2 md:px-0">
              <div className="flex items-center gap-3 md:flex-col md:gap-0">
-                 <div className="w-10 h-10 md:w-16 md:h-16 md:mb-2 relative">
-                    <img src="/tunaicukaimy-logo.png" alt="TunaiCukai Logo" className="w-full h-full object-contain drop-shadow-sm" />
+                  <div className="w-10 h-10 md:w-16 md:h-16 md:mb-2 relative">
+                    <img src={logo} alt="TunaiCukai Logo" className="w-full h-full object-contain drop-shadow-sm" />
                     {/* Global Active Indicator */}
                     {connected && (
                         <div className="absolute -top-1 -right-1">
@@ -196,10 +197,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 <select 
                     title="Select Language"
                     value={language}
-                    onChange={(e) => setLanguage(e.target.value as any)}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setLanguage(e.target.value as any)}
                     className="bg-slate-100 border-none rounded-md py-1 px-2 text-xs font-medium text-slate-600 outline-none"
                  >
-                     {SUPPORTED_LANGUAGES.map(lang => (
+                     {SUPPORTED_LANGUAGES.map((lang: {code: any}) => (
                          <option key={lang.code} value={lang.code}>{lang.code}</option>
                      ))}
                  </select>
@@ -215,10 +216,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 <select 
                     title="Select Language"
                     value={language}
-                    onChange={(e) => setLanguage(e.target.value as any)}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setLanguage(e.target.value as any)}
                     className="w-full appearance-none bg-slate-100 border-none rounded-md py-2 pl-9 pr-8 text-xs font-medium text-slate-600 cursor-pointer outline-none focus:ring-2 focus:ring-slate-950"
                  >
-                     {SUPPORTED_LANGUAGES.map(lang => (
+                     {SUPPORTED_LANGUAGES.map((lang: {code: any, flag: string, label: string}) => (
                          <option key={lang.code} value={lang.code}>
                              {lang.flag} {lang.label}
                          </option>
